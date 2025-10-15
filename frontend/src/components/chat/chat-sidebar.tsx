@@ -17,20 +17,22 @@ import {
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ConversationData } from '@/types/chat';
+import type { ConfigOption } from '@/api/config';
+import type { UserProfile } from '@/api/user-profile';
 
 interface ChatSidebarProps {
   conversations: ConversationData[];
   activeConversationId: string;
-  configOptions: string[];
-  selectedConfig: string;
-  userProfileOptions: string[];
-  selectedProfile: string;
+  configOptions: ConfigOption[];
+  selectedConfig: string | null;
+  userProfileOptions: UserProfile[];
+  selectedProfile: string | null;
   isOpen: boolean;
   onToggle: () => void;
   onCreateConversation: () => void;
   onSelectConversation: (conversationId: string) => void;
-  onSelectConfig: (config: string) => void;
-  onSelectProfile: (profile: string) => void;
+  onSelectConfig: (config: string | null) => void;
+  onSelectProfile: (profile: string | null) => void;
   onDeleteConversation: (conversationId: string) => void;
 }
 
@@ -118,14 +120,19 @@ export function ChatSidebar({
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Configuration
             </p>
-            <Select value={selectedConfig} onValueChange={onSelectConfig}>
+            <Select
+              value={selectedConfig ?? undefined}
+              onValueChange={(value) => {
+                onSelectConfig(value);
+              }}
+            >
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue placeholder="Loading..." />
               </SelectTrigger>
               <SelectContent>
                 {configOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
+                  <SelectItem key={option.name} value={option.name}>
+                    {option.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -136,14 +143,19 @@ export function ChatSidebar({
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               User Profile
             </p>
-            <Select value={selectedProfile} onValueChange={onSelectProfile}>
+            <Select
+              value={selectedProfile ?? undefined}
+              onValueChange={(value) => {
+                onSelectProfile(value);
+              }}
+            >
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue placeholder="Loading..." />
               </SelectTrigger>
               <SelectContent>
                 {userProfileOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
+                  <SelectItem key={option.name} value={option.name}>
+                    {option.name}
                   </SelectItem>
                 ))}
               </SelectContent>

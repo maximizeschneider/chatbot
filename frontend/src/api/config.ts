@@ -1,15 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from './client';
 
-export type ConfigResponse = {
-  options: string[];
-  defaultOption: string;
-  updatedAt: string;
-  flags?: {
-    questionGenerationEnabled?: boolean;
-    feedbackEnabled?: boolean;
-  };
-};
+export interface ConfigOption {
+  name: string;
+  publishedToMain: boolean;
+  someShit: string;
+}
+
+export type ConfigResponse = ConfigOption[];
 
 export const useConfigQuery = () =>
   useQuery<ConfigResponse>({
@@ -17,4 +15,3 @@ export const useConfigQuery = () =>
     queryFn: () => apiFetch<ConfigResponse>('/config'),
     staleTime: 5 * 60 * 1000,
   });
-

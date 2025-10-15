@@ -238,7 +238,7 @@ export function ChatMessages({
                       </div>
                     ) : sourcesError ? (
                       <p className="text-sm text-destructive">
-                        Failed to load sources: {sourcesError}
+                        Failed to load sources
                       </p>
                     ) : hasLoadedSources ? (
                       hasSources ? (

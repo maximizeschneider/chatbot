@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { ChatSidebar } from '@/components/chat/chat-sidebar';
 import { ChatMessages } from '@/components/chat/chat-messages';
 import { ChatInput } from '@/components/chat/chat-input';
 import { SourceDialog } from '@/components/chat/source-dialog';
 import { FeedbackDialog } from '@/components/chat/feedback-dialog';
+import { Toaster } from '@/components/ui/sonner';
 import { useChatMutation } from '@/api/chat';
+import type { ChatRequest } from '@/api/chat';
 import { useFeedbackMutation } from '@/api/feedback';
 import { useQuestionGenerationMutation } from '@/api/questions';
 import { fetchMessageSources } from '@/api/message';
@@ -13,8 +16,8 @@ import {
   useCreateConversationMutation,
   useDeleteConversationMutation,
 } from '@/api/conversation';
-import { useConfigQuery } from '@/api/config';
-import { useUserQuery } from '@/api/user';
+import { useConfigQuery, type ConfigOption } from '@/api/config';
+import { useUserProfileQuery, type UserProfile } from '@/api/user-profile';
 import type {
   ChatMessage,
   ConversationData,
@@ -23,8 +26,6 @@ import type {
 } from '@/types/chat';
 import type { StickToBottomContext } from 'use-stick-to-bottom';
 
-const CONFIG_OPTIONS = ['Default', 'Creative', 'Precise'];
-const USER_PROFILE_OPTIONS = ['Guest', 'Power User', 'Analyst'];
 const INITIAL_CONVERSATION: ConversationData = {
   id: 'local-seed',
   title: 'New Conversation',
@@ -159,12 +160,8 @@ export default function App() {
     sources: Source[];
     index: number;
   } | null>(null);
-  const [selectedConfig, setSelectedConfig] = useState<string>(
-    CONFIG_OPTIONS[0]
-  );
-  const [selectedProfile, setSelectedProfile] = useState<string>(
-    USER_PROFILE_OPTIONS[0]
-  );
+  const [selectedConfig, setSelectedConfig] = useState<string | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [pendingFeedback, setPendingFeedback] =
     useState<PendingFeedback | null>(null);
@@ -173,8 +170,6 @@ export default function App() {
   const hasUserScrolledDuringStreamRef = useRef(false);
   const wasStreamingRef = useRef(false);
   const streamingConversationRef = useRef<string | null>(null);
-  const [configInitialized, setConfigInitialized] = useState(false);
-  const [profileInitialized, setProfileInitialized] = useState(false);
   const [hasInitializedConversations, setHasInitializedConversations] =
     useState(false);
   const [visibleSourcesByConversation, setVisibleSourcesByConversation] =
@@ -231,48 +226,70 @@ export default function App() {
     });
   }, [activeConversationId]);
 
-  const { data: configData } = useConfigQuery();
-  const { data: userData } = useUserQuery();
-  const { data: remoteConversations } = useConversationsQuery();
+  const { data: configData, isError: isConfigError, error: configError } = useConfigQuery();
+  const { data: userProfileData, isError: isProfileError, error: profileError } = useUserProfileQuery();
+  const { data: remoteConversations, isError: isConversationsError, error: conversationsError } = useConversationsQuery();
 
-  const configOptions =
-    configData?.options && configData.options.length > 0
-      ? configData.options
-      : CONFIG_OPTIONS;
-  const userProfileOptions =
-    userData?.user?.profiles && userData.user.profiles.length > 0
-      ? userData.user.profiles
-      : USER_PROFILE_OPTIONS;
+  // Show toast notifications for query errors
+  useEffect(() => {
+    if (isConfigError) {
+      toast.error('Failed to load configs', {
+        description: configError instanceof Error ? configError.message : 'Could not fetch configuration options',
+      });
+    }
+  }, [isConfigError, configError]);
 
   useEffect(() => {
-    if (!configInitialized && configData?.defaultOption) {
-      setSelectedConfig(configData.defaultOption);
-      setConfigInitialized(true);
+    if (isProfileError) {
+      toast.error('Failed to load user profiles', {
+        description: profileError instanceof Error ? profileError.message : 'Could not fetch user profile options',
+      });
     }
-  }, [configData, configInitialized]);
+  }, [isProfileError, profileError]);
 
   useEffect(() => {
-    if (!profileInitialized && userData?.user?.activeProfile) {
-      setSelectedProfile(userData.user.activeProfile);
-      setProfileInitialized(true);
+    if (isConversationsError) {
+      toast.error('Failed to load conversations', {
+        description: conversationsError instanceof Error ? conversationsError.message : 'Could not fetch your conversation history',
+      });
     }
-  }, [userData, profileInitialized]);
+  }, [isConversationsError, conversationsError]);
+
+  // Process configs: put publishedToMain first
+  const configOptions: ConfigOption[] = configData
+    ? (() => {
+        const published = configData.find((c) => c.publishedToMain);
+        const others = configData.filter((c) => !c.publishedToMain);
+        return published ? [published, ...others] : configData;
+      })()
+    : [];
+
+  // Process user profiles: merge "max.1sch" as first option
+  const userProfileOptions: UserProfile | {name: string}[] = userProfileData
+    ? [{ name: 'max.1sch' }, ...userProfileData]
+    : [];
 
   useEffect(() => {
     if (
+      selectedConfig &&
       configOptions.length > 0 &&
-      !configOptions.includes(selectedConfig)
+      !configOptions.some((c) => c.name === selectedConfig)
     ) {
-      setSelectedConfig(configOptions[0]);
+      setSelectedConfig(configOptions[0]?.name ?? null);
+    } else if (!selectedConfig && configOptions.length > 0) {
+      setSelectedConfig(configOptions[0]?.name ?? null);
     }
   }, [configOptions, selectedConfig]);
 
   useEffect(() => {
     if (
+      selectedProfile &&
       userProfileOptions.length > 0 &&
-      !userProfileOptions.includes(selectedProfile)
+      !userProfileOptions.some((p) => p.name === selectedProfile)
     ) {
-      setSelectedProfile(userProfileOptions[0]);
+      setSelectedProfile(userProfileOptions[0]?.name ?? null);
+    } else if (!selectedProfile && userProfileOptions.length > 0) {
+      setSelectedProfile(userProfileOptions[0]?.name ?? null);
     }
   }, [userProfileOptions, selectedProfile]);
 
@@ -645,12 +662,18 @@ export default function App() {
     }
 
     try {
-      const finalPayload = await chatMutation.mutateAsync({
+      const chatRequest: ChatRequest = {
         prompt: text,
         conversationId,
-        config: selectedConfig,
-        profile: selectedProfile,
-      });
+      };
+      if (selectedConfig) {
+        chatRequest.config = selectedConfig;
+      }
+      if (selectedProfile) {
+        chatRequest.profile = selectedProfile;
+      }
+
+      const finalPayload = await chatMutation.mutateAsync(chatRequest);
 
       const assistantMessage: ChatMessage = {
         id: `${Date.now()}-assistant`,
@@ -705,6 +728,12 @@ export default function App() {
         error instanceof Error
           ? error.message
           : 'Something went wrong while sending your message.';
+      
+      // Show toast notification for chat error
+      toast.error('Chat error', {
+        description: errorMessage,
+      });
+
       setActiveStream((current) => {
         if (current.conversationId !== conversationId) {
           return current;
@@ -1021,6 +1050,7 @@ export default function App() {
 
   return (
     <>
+      <Toaster />
       <div className="flex h-screen bg-background">
         <ChatSidebar
           conversations={conversations}
