@@ -58,6 +58,7 @@ router.post('/', (req, res) => {
     }>,
   };
 
+  conversations.push(newConversation);
   res.status(201).json({ conversation: newConversation });
 });
 
@@ -66,6 +67,13 @@ router.delete('/:conversationId', (req, res) => {
   if (!conversationId) {
     return res.status(400).json({ error: 'conversationId is required' });
   }
+  
+  const index = conversations.findIndex((conv) => conv.id === conversationId);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Conversation not found' });
+  }
+  
+  conversations.splice(index, 1);
   res.status(204).send();
 });
 

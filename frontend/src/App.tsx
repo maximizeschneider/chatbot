@@ -536,25 +536,39 @@ export default function App() {
   );
 
   const createNewConversation = async () => {
+    // Optimistic update: create temporary conversation immediately
+    const tempId = `temp-${Date.now()}`;
+    const tempConv: ConversationData = {
+      id: tempId,
+      title: 'New Conversation',
+      messages: [],
+    };
+    
+    setConversations((prev) => [tempConv, ...prev]);
+    setActiveConversationId(tempId);
+
     try {
       const created = await createConversationMutation.mutateAsync({
         title: 'New Conversation',
       });
-      setConversations((prev) => [created, ...prev]);
+      
+      // Replace temporary conversation with the real one
+      setConversations((prev) =>
+        prev.map((conv) => (conv.id === tempId ? created : conv))
+      );
       setActiveConversationId(created.id);
     } catch (error) {
-      console.error(
-        'Failed to create conversation via API, falling back to local creation.',
-        error
+      console.error('Failed to create conversation via API:', error);
+      toast.error('Failed to create conversation', {
+        description: error instanceof Error ? error.message : 'Could not create a new conversation. You can still use it locally.',
+      });
+      // Keep the temporary conversation for local use
+      // Replace temp ID with a permanent local ID
+      const localId = `local-${Date.now()}`;
+      setConversations((prev) =>
+        prev.map((conv) => (conv.id === tempId ? { ...conv, id: localId } : conv))
       );
-      const newId = Date.now().toString();
-      const newConv: ConversationData = {
-        id: newId,
-        title: 'New Conversation',
-        messages: [],
-      };
-      setConversations((prev) => [newConv, ...prev]);
-      setActiveConversationId(newConv.id);
+      setActiveConversationId(localId);
     }
   };
 
@@ -570,6 +584,14 @@ export default function App() {
   };
 
   const deleteConversation = async (conversationId: string) => {
+    // Store the conversation and current state for potential rollback
+    const conversationToDelete = conversations.find((conv) => conv.id === conversationId);
+    if (!conversationToDelete) return;
+
+    const previousActiveId = activeConversationId;
+    const previousConversations = conversations;
+
+    // Optimistic update: remove immediately from UI
     setConversations((prev) => {
       const updatedConversations = prev.filter(
         (conv) => conv.id !== conversationId
@@ -596,6 +618,13 @@ export default function App() {
       await deleteConversationMutation.mutateAsync({ conversationId });
     } catch (error) {
       console.error('Failed to delete conversation via API:', error);
+      toast.error('Failed to delete conversation', {
+        description: error instanceof Error ? error.message : 'Could not delete the conversation. It has been restored.',
+      });
+      
+      // Rollback: restore the conversation
+      setConversations(previousConversations);
+      setActiveConversationId(previousActiveId);
     }
   };
 
