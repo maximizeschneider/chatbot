@@ -1,5 +1,5 @@
-import type { Source } from '@/types/chat';
-import { apiFetch } from './client';
+import type { Source } from "@/types/chat";
+import { apiFetch } from "./client";
 
 type MessageSourcesResponse = {
   sources?: Source[];

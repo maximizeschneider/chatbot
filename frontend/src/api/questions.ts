@@ -1,5 +1,5 @@
-import { useMutation } from '@tanstack/react-query';
-import { apiFetch } from './client';
+import { useMutation } from "@tanstack/react-query";
+import { apiFetch } from "./client";
 
 export type QuestionGenerationRequest = {
   messageId?: string;
@@ -16,10 +16,10 @@ export type QuestionGenerationResponse = {
 
 export const useQuestionGenerationMutation = () =>
   useMutation<QuestionGenerationResponse, Error, QuestionGenerationRequest>({
-    mutationKey: ['generate-questions'],
+    mutationKey: ["generate-questions"],
     mutationFn: (payload) =>
-      apiFetch<QuestionGenerationResponse>('/questions', {
-        method: 'POST',
+      apiFetch<QuestionGenerationResponse>("/questions", {
+        method: "POST",
         body: JSON.stringify(payload),
       }),
   });

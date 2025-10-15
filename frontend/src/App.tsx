@@ -1,34 +1,34 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { ChatSidebar } from '@/components/chat/chat-sidebar';
-import { ChatMessages } from '@/components/chat/chat-messages';
-import { ChatInput } from '@/components/chat/chat-input';
-import { SourceDialog } from '@/components/chat/source-dialog';
-import { FeedbackDialog } from '@/components/chat/feedback-dialog';
-import { Toaster } from '@/components/ui/sonner';
-import { useChatMutation } from '@/api/chat';
-import type { ChatRequest } from '@/api/chat';
-import { useFeedbackMutation } from '@/api/feedback';
-import { useQuestionGenerationMutation } from '@/api/questions';
-import { fetchMessageSources } from '@/api/message';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { ChatSidebar } from "@/components/chat/chat-sidebar";
+import { ChatMessages } from "@/components/chat/chat-messages";
+import { ChatInput } from "@/components/chat/chat-input";
+import { SourceDialog } from "@/components/chat/source-dialog";
+import { FeedbackDialog } from "@/components/chat/feedback-dialog";
+import { Toaster } from "@/components/ui/sonner";
+import { useChatMutation } from "@/api/chat";
+import type { ChatRequest } from "@/api/chat";
+import { useFeedbackMutation } from "@/api/feedback";
+import { useQuestionGenerationMutation } from "@/api/questions";
+import { fetchMessageSources } from "@/api/message";
 import {
   useConversationsQuery,
   useCreateConversationMutation,
   useDeleteConversationMutation,
-} from '@/api/conversation';
-import { useConfigQuery, type ConfigOption } from '@/api/config';
-import { useUserProfileQuery, type UserProfile } from '@/api/user-profile';
+} from "@/api/conversation";
+import { useConfigQuery, type ConfigOption } from "@/api/config";
+import { useUserProfileQuery, type UserProfile } from "@/api/user-profile";
 import type {
   ChatMessage,
   ConversationData,
   PendingFeedback,
   Source,
-} from '@/types/chat';
-import type { StickToBottomContext } from 'use-stick-to-bottom';
+} from "@/types/chat";
+import type { StickToBottomContext } from "use-stick-to-bottom";
 
 const INITIAL_CONVERSATION: ConversationData = {
-  id: 'local-seed',
-  title: 'New Conversation',
+  id: "local-seed",
+  title: "New Conversation",
   messages: [],
 };
 
@@ -43,23 +43,23 @@ interface ActiveStreamState {
 const INITIAL_STREAM_STATE: ActiveStreamState = {
   conversationId: null,
   isStreaming: false,
-  message: '',
-  statusUpdate: '',
+  message: "",
+  statusUpdate: "",
   error: null,
 };
 
 const NEGATIVE_FEEDBACK_OPTIONS = [
-  { value: 'incorrect', label: 'Incorrect or misleading information' },
-  { value: 'missing', label: 'Missing important details' },
-  { value: 'not-helpful', label: 'Not relevant or helpful' },
-  { value: 'tone', label: 'Tone or style issue' },
-  { value: 'other', label: 'Other' },
+  { value: "incorrect", label: "Incorrect or misleading information" },
+  { value: "missing", label: "Missing important details" },
+  { value: "not-helpful", label: "Not relevant or helpful" },
+  { value: "tone", label: "Tone or style issue" },
+  { value: "other", label: "Other" },
 ] as const;
 
 type NegativeFeedbackValue =
-  (typeof NEGATIVE_FEEDBACK_OPTIONS)[number]['value'];
+  (typeof NEGATIVE_FEEDBACK_OPTIONS)[number]["value"];
 
-const OTHER_FEEDBACK_VALUE: NegativeFeedbackValue = 'other';
+const OTHER_FEEDBACK_VALUE: NegativeFeedbackValue = "other";
 
 const normalizeSources = (sources?: Source[] | null): Source[] | undefined => {
   if (!Array.isArray(sources)) {
@@ -68,7 +68,7 @@ const normalizeSources = (sources?: Source[] | null): Source[] | undefined => {
 
   return sources.map((source) => ({
     ...source,
-    text: source.text ?? 'No excerpt available.',
+    text: source.text ?? "No excerpt available.",
     relevantParts: source.relevantParts ?? [],
   }));
 };
@@ -79,7 +79,7 @@ const parseFeedbackReason = (
   if (!reason || !reason.trim()) {
     return {
       selectedReason: null,
-      customExplanation: '',
+      customExplanation: "",
     };
   }
 
@@ -93,7 +93,7 @@ const parseFeedbackReason = (
   if (matchedOption) {
     if (matchedOption.value === OTHER_FEEDBACK_VALUE) {
       const explanation = normalized
-        .replace(/^other\s*[:\-]?\s*/i, '')
+        .replace(/^other\s*[:\-]?\s*/i, "")
         .trim();
       return {
         selectedReason: OTHER_FEEDBACK_VALUE,
@@ -103,12 +103,12 @@ const parseFeedbackReason = (
 
     return {
       selectedReason: matchedOption.value,
-      customExplanation: '',
+      customExplanation: "",
     };
   }
 
   if (/^other\b/i.test(normalized)) {
-    const explanation = normalized.replace(/^other\s*[:\-]?\s*/i, '').trim();
+    const explanation = normalized.replace(/^other\s*[:\-]?\s*/i, "").trim();
     return {
       selectedReason: OTHER_FEEDBACK_VALUE,
       customExplanation: explanation,
@@ -144,7 +144,7 @@ const formatFeedbackReason = (
 const isNegativeFeedbackValue = (
   value: string | null | undefined
 ): value is NegativeFeedbackValue =>
-  typeof value === 'string' &&
+  typeof value === "string" &&
   NEGATIVE_FEEDBACK_OPTIONS.some((option) => option.value === value);
 
 export default function App() {
@@ -160,8 +160,8 @@ export default function App() {
     sources: Source[];
     index: number;
   } | null>(null);
-  const [selectedConfig, setSelectedConfig] = useState<string | null>(null);
-  const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
+  const [selectedConfigName, setSelectedConfigName] = useState<string | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [pendingFeedback, setPendingFeedback] =
     useState<PendingFeedback | null>(null);
@@ -233,24 +233,24 @@ export default function App() {
   // Show toast notifications for query errors
   useEffect(() => {
     if (isConfigError) {
-      toast.error('Failed to load configs', {
-        description: configError instanceof Error ? configError.message : 'Could not fetch configuration options',
+      toast.error("Failed to load configs", {
+        description: configError instanceof Error ? configError.message : "Could not fetch configuration options",
       });
     }
   }, [isConfigError, configError]);
 
   useEffect(() => {
     if (isProfileError) {
-      toast.error('Failed to load user profiles', {
-        description: profileError instanceof Error ? profileError.message : 'Could not fetch user profile options',
+      toast.error("Failed to load user profiles", {
+        description: profileError instanceof Error ? profileError.message : "Could not fetch user profile options",
       });
     }
   }, [isProfileError, profileError]);
 
   useEffect(() => {
     if (isConversationsError) {
-      toast.error('Failed to load conversations', {
-        description: conversationsError instanceof Error ? conversationsError.message : 'Could not fetch your conversation history',
+      toast.error("Failed to load conversations", {
+        description: conversationsError instanceof Error ? conversationsError.message : "Could not fetch your conversation history",
       });
     }
   }, [isConversationsError, conversationsError]);
@@ -264,32 +264,33 @@ export default function App() {
       })()
     : [];
 
-  // Process user profiles: merge "max.1sch" as first option
-  const userProfileOptions: UserProfile | {name: string}[] = userProfileData
-    ? [{ name: 'max.1sch' }, ...userProfileData]
+  // get upn from context session, hardcoded for now
+  const upn = "max1.schneider@genbw.com"
+  const userProfileOptions: UserProfile[] = userProfileData
+    ? [{ name: upn, _id: "upn" }, ...userProfileData]
     : [];
 
   useEffect(() => {
     if (
-      selectedConfig &&
+      selectedConfigName &&
       configOptions.length > 0 &&
-      !configOptions.some((c) => c.name === selectedConfig)
+      !configOptions.some((c) => c.name === selectedConfigName)
     ) {
-      setSelectedConfig(configOptions[0]?.name ?? null);
-    } else if (!selectedConfig && configOptions.length > 0) {
-      setSelectedConfig(configOptions[0]?.name ?? null);
+      setSelectedConfigName(configOptions[0]?.name ?? null);
+    } else if (!selectedConfigName && configOptions.length > 0) {
+      setSelectedConfigName(configOptions[0]?.name ?? null);
     }
-  }, [configOptions, selectedConfig]);
+  }, [configOptions, selectedConfigName]);
 
   useEffect(() => {
     if (
       selectedProfile &&
       userProfileOptions.length > 0 &&
-      !userProfileOptions.some((p) => p.name === selectedProfile)
+      !userProfileOptions.some((p) => p.name === selectedProfile.name)
     ) {
-      setSelectedProfile(userProfileOptions[0]?.name ?? null);
+      setSelectedProfile(userProfileOptions[0] ?? null);
     } else if (!selectedProfile && userProfileOptions.length > 0) {
-      setSelectedProfile(userProfileOptions[0]?.name ?? null);
+      setSelectedProfile(userProfileOptions[0] ?? null);
     }
   }, [userProfileOptions, selectedProfile]);
 
@@ -332,12 +333,12 @@ export default function App() {
         return {
           ...current,
           message: current.message + token,
-          statusUpdate: '',
+          statusUpdate: "",
         };
       });
     },
     onError: (error) => {
-      console.error('Chat error:', error);
+      console.error("Chat error:", error);
     },
   });
   const feedbackMutation = useFeedbackMutation();
@@ -355,42 +356,43 @@ export default function App() {
       );
       const message = conversation?.messages.find((msg) => msg.id === messageId);
 
-      if (!conversation || !message || message.role !== 'assistant') {
+      if (!conversation || !message || message.role !== "assistant") {
         return;
       }
 
       if (message.sources !== undefined) {
-        setLoadingSourcesByConversation((current) => {
-          const conversationLoading = current[conversationId];
-          if (!conversationLoading || conversationLoading[messageId] === undefined) {
-            return current;
-          }
-          const { [messageId]: _removed, ...rest } = conversationLoading;
-          const next = { ...current };
-          if (Object.keys(rest).length > 0) {
-            next[conversationId] = rest;
-          } else {
-            delete next[conversationId];
-          }
-          return next;
-        });
-        setSourcesErrorByConversation((current) => {
-          const conversationErrors = current[conversationId];
-          if (!conversationErrors || conversationErrors[messageId] === undefined) {
-            return current;
-          }
-          const { [messageId]: _removed, ...rest } = conversationErrors;
-          const next = { ...current };
-          if (Object.keys(rest).length > 0) {
-            next[conversationId] = rest;
-          } else {
-            delete next[conversationId];
-          }
-          return next;
-        });
-        return;
-      }
+      setLoadingSourcesByConversation((current) => {
+        const conversationLoading = current[conversationId];
+        if (!conversationLoading || conversationLoading[messageId] === undefined) {
+          return current;
+        }
+        const { [messageId]: _removed, ...rest } = conversationLoading;
+        const next = { ...current };
+        if (Object.keys(rest).length > 0) {
+          next[conversationId] = rest;
+        } else {
+          delete next[conversationId];
+        }
+        return next;
+      });
+      setSourcesErrorByConversation((current) => {
+        const conversationErrors = current[conversationId];
+        if (!conversationErrors || conversationErrors[messageId] === undefined) {
+          return current;
+        }
+        const { [messageId]: _removed, ...rest } = conversationErrors;
+        const next = { ...current };
+        if (Object.keys(rest).length > 0) {
+          next[conversationId] = rest;
+        } else {
+          delete next[conversationId];
+        }
+        return next;
+      });
+      return;
+    }
 
+    try {
       setLoadingSourcesByConversation((current) => ({
         ...current,
         [conversationId]: {
@@ -413,8 +415,6 @@ export default function App() {
         }
         return next;
       });
-
-      try {
         const fetchedSources = await fetchMessageSources({
           conversationId,
           messageId,
@@ -442,7 +442,7 @@ export default function App() {
         const errorMessage =
           error instanceof Error
             ? error.message
-            : 'Unable to load sources for this response.';
+            : "Unable to load sources for this response.";
         setSourcesErrorByConversation((current) => ({
           ...current,
           [conversationId]: {
@@ -500,17 +500,17 @@ export default function App() {
       return;
     }
 
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [isActiveConversationStreaming]);
 
   const visibleStreamingMessage =
     activeStream.conversationId === activeConversationId
       ? activeStream.message
-      : '';
+      : "";
   const visibleStatusUpdate =
     activeStream.conversationId === activeConversationId
       ? activeStream.statusUpdate
-      : '';
+      : "";
   const visibleError =
     activeStream.conversationId === activeConversationId
       ? activeStream.error
@@ -540,7 +540,7 @@ export default function App() {
     const tempId = `temp-${Date.now()}`;
     const tempConv: ConversationData = {
       id: tempId,
-      title: 'New Conversation',
+      title: "New Conversation",
       messages: [],
     };
     
@@ -549,7 +549,7 @@ export default function App() {
 
     try {
       const created = await createConversationMutation.mutateAsync({
-        title: 'New Conversation',
+        title: "New Conversation",
       });
       
       // Replace temporary conversation with the real one
@@ -558,9 +558,9 @@ export default function App() {
       );
       setActiveConversationId(created.id);
     } catch (error) {
-      console.error('Failed to create conversation via API:', error);
-      toast.error('Failed to create conversation', {
-        description: error instanceof Error ? error.message : 'Could not create a new conversation. You can still use it locally.',
+      console.error("Failed to create conversation via API:", error);
+      toast.error("Failed to create conversation", {
+        description: error instanceof Error ? error.message : "Could not create a new conversation. You can still use it locally.",
       });
       // Keep the temporary conversation for local use
       // Replace temp ID with a permanent local ID
@@ -573,7 +573,7 @@ export default function App() {
   };
 
   const updateConversationTitle = (convId: string, firstMessage: string) => {
-    const title = firstMessage.slice(0, 30) + (firstMessage.length > 30 ? '...' : '');
+    const title = firstMessage.slice(0, 30) + (firstMessage.length > 30 ? "..." : "");
     setConversations((prev) =>
       prev.map((conv) =>
         conv.id === convId && conv.messages.length <= 1
@@ -600,7 +600,7 @@ export default function App() {
       if (updatedConversations.length === 0) {
         const newConversation: ConversationData = {
           id: Date.now().toString(),
-          title: 'New Conversation',
+          title: "New Conversation",
           messages: [],
         };
         setActiveConversationId(newConversation.id);
@@ -617,9 +617,9 @@ export default function App() {
     try {
       await deleteConversationMutation.mutateAsync({ conversationId });
     } catch (error) {
-      console.error('Failed to delete conversation via API:', error);
-      toast.error('Failed to delete conversation', {
-        description: error instanceof Error ? error.message : 'Could not delete the conversation. It has been restored.',
+      console.error("Failed to delete conversation via API:", error);
+      toast.error("Failed to delete conversation", {
+        description: error instanceof Error ? error.message : "Could not delete the conversation. It has been restored.",
       });
       
       // Rollback: restore the conversation
@@ -668,13 +668,13 @@ export default function App() {
     setActiveStream({
       conversationId,
       isStreaming: true,
-      message: '',
-      statusUpdate: '',
+      message: "",
+      statusUpdate: "",
       error: null,
     });
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      role: 'user',
+      role: "user",
       content: text,
     };
 
@@ -695,18 +695,22 @@ export default function App() {
         prompt: text,
         conversationId,
       };
-      if (selectedConfig) {
-        chatRequest.config = selectedConfig;
+      if (selectedConfigName) {
+        chatRequest.configName = selectedConfigName;
       }
       if (selectedProfile) {
-        chatRequest.profile = selectedProfile;
+        if (selectedProfile._id === "upn") {
+          chatRequest.upn = selectedProfile.name;
+        } else {
+          chatRequest.profile = selectedProfile;
+        }
       }
 
       const finalPayload = await chatMutation.mutateAsync(chatRequest);
 
       const assistantMessage: ChatMessage = {
         id: `${Date.now()}-assistant`,
-        role: 'assistant',
+        role: "assistant",
         content: finalPayload.message,
         feedback: null,
       };
@@ -752,14 +756,14 @@ export default function App() {
         return next;
       });
     } catch (error) {
-      console.error('Error:', error);
+      console.error("Error:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
-          : 'Something went wrong while sending your message.';
+          : "Something went wrong while sending your message.";
       
       // Show toast notification for chat error
-      toast.error('Chat error', {
+      toast.error("Chat error", {
         description: errorMessage,
       });
 
@@ -784,16 +788,16 @@ export default function App() {
           return {
             ...current,
             isStreaming: false,
-            statusUpdate: '',
-            message: '',
+            statusUpdate: "",
+            message: "",
           };
         }
 
         return {
           conversationId: null,
           isStreaming: false,
-          message: '',
-          statusUpdate: '',
+          message: "",
+          statusUpdate: "",
           error: null,
         };
       });
@@ -802,7 +806,7 @@ export default function App() {
 
   const handleFeedback = (
     messageId: string,
-    feedback: 'up' | 'down' | null,
+    feedback: "up" | "down" | null,
     reason?: string
   ) => {
     const trimmedReason = reason?.trim();
@@ -818,7 +822,7 @@ export default function App() {
                       ...msg,
                       feedback,
                       feedbackReason:
-                        feedback === 'down'
+                        feedback === "down"
                           ? trimmedReason || undefined
                           : undefined,
                     }
@@ -840,7 +844,7 @@ export default function App() {
   };
 
   const handleNegativeFeedbackClick = (message: ChatMessage) => {
-    if (message.feedback === 'down') {
+    if (message.feedback === "down") {
       handleFeedback(message.id, null);
       return;
     }
@@ -877,7 +881,7 @@ export default function App() {
       return;
     }
 
-    handleFeedback(pendingFeedback.messageId, 'down', reason);
+    handleFeedback(pendingFeedback.messageId, "down", reason);
     closeFeedbackDialog();
   };
 
@@ -892,7 +896,7 @@ export default function App() {
             ...current,
             selectedReason: value,
             customExplanation:
-              value === OTHER_FEEDBACK_VALUE ? current.customExplanation : '',
+              value === OTHER_FEEDBACK_VALUE ? current.customExplanation : "",
           }
         : current
     );
@@ -910,7 +914,7 @@ export default function App() {
   };
 
   const handleGenerateQuestions = async (message: ChatMessage) => {
-    if (message.role !== 'assistant' || questionMutation.isPending) {
+    if (message.role !== "assistant" || questionMutation.isPending) {
       return;
     }
 
@@ -938,7 +942,7 @@ export default function App() {
         );
       }
     } catch (error) {
-      console.error('Failed to generate questions:', error);
+      console.error("Failed to generate questions:", error);
     }
   };
 
@@ -1061,22 +1065,6 @@ export default function App() {
     void loadSourcesForMessage(conversationId, message.id);
   };
 
-  const handleDismissError = () => {
-    setActiveStream((current) => {
-      if (current.conversationId !== activeConversationId) {
-        return current;
-      }
-
-      return {
-        conversationId: null,
-        isStreaming: false,
-        message: '',
-        statusUpdate: '',
-        error: null,
-      };
-    });
-  };
-
   return (
     <>
       <Toaster />
@@ -1085,7 +1073,7 @@ export default function App() {
           conversations={conversations}
           activeConversationId={activeConversationId}
           configOptions={configOptions}
-          selectedConfig={selectedConfig}
+          selectedConfigName={selectedConfigName}
           userProfileOptions={userProfileOptions}
           selectedProfile={selectedProfile}
           isOpen={isSidebarOpen}
@@ -1094,7 +1082,7 @@ export default function App() {
             void createNewConversation();
           }}
           onSelectConversation={setActiveConversationId}
-          onSelectConfig={setSelectedConfig}
+          onSelectConfigName={setSelectedConfigName}
           onSelectProfile={setSelectedProfile}
           onDeleteConversation={(conversationId) => {
             void deleteConversation(conversationId);
@@ -1107,8 +1095,6 @@ export default function App() {
             statusUpdate={visibleStatusUpdate}
             isStreaming={isActiveConversationStreaming}
             streamingMessage={visibleStreamingMessage}
-            error={visibleError}
-            onDismissError={handleDismissError}
             isSourcesVisible={(messageId) =>
               !!visibleSourcesByConversation[activeConversationId]?.[messageId]
             }
@@ -1165,7 +1151,7 @@ export default function App() {
             }
 
             const nextIndex =
-              direction === 'next' ? current.index + 1 : current.index - 1;
+              direction === "next" ? current.index + 1 : current.index - 1;
             if (nextIndex < 0 || nextIndex >= current.sources.length) {
               return current;
             }

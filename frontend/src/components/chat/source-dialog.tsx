@@ -1,21 +1,21 @@
-import { useState, useEffect, useRef } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import type { Source } from '@/types/chat';
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
-import { Response } from '@/components/ai-elements/response';
+} from "@/components/ui/dialog";
+import type { Source } from "@/types/chat";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { Response } from "@/components/ai-elements/response";
 
 interface SourceDialogProps {
   open: boolean;
   sources: Source[];
   activeIndex: number;
   onClose: () => void;
-  onNavigate: (direction: 'previous' | 'next') => void;
+  onNavigate: (direction: "previous" | "next") => void;
 }
 
 export function SourceDialog({
@@ -45,9 +45,9 @@ export function SourceDialog({
     if (highlightedPartIndex !== null && highlightRef.current) {
       // Small delay to ensure the content is rendered
       setTimeout(() => {
-        const markElement = highlightRef.current?.querySelector('mark');
+        const markElement = highlightRef.current?.querySelector("mark");
         if (markElement) {
-          markElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          markElement.scrollIntoView({ behavior: "smooth", block: "center" });
         }
       }, 100);
     }
@@ -81,9 +81,9 @@ export function SourceDialog({
     // Using light yellow background that works well in both light and dark modes
     return (
       text.substring(0, index) +
-      '<mark class="bg-yellow-100 dark:bg-yellow-900/30 px-1 rounded">' +
+      "<mark class='bg-yellow-100 dark:bg-yellow-900/30 px-1 rounded'>" +
       partToHighlight +
-      '</mark>' +
+      "</mark>" +
       text.substring(index + partToHighlight.length)
     );
   };
@@ -101,7 +101,7 @@ export function SourceDialog({
                 className="absolute -left-1 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full shadow-lg z-50"
                 onClick={() => {
                   resetHighlight();
-                  onNavigate('previous');
+                  onNavigate("previous");
                 }}
                 disabled={!hasPrevious}
                 aria-label="Previous source"
@@ -115,7 +115,7 @@ export function SourceDialog({
                 className="absolute -right-1 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full shadow-lg z-50"
                 onClick={() => {
                   resetHighlight();
-                  onNavigate('next');
+                  onNavigate("next");
                 }}
                 disabled={!hasNext}
                 aria-label="Next source"
@@ -125,7 +125,7 @@ export function SourceDialog({
             </>
           )}
           <DialogHeader className="px-12 flex-shrink-0">
-            <DialogTitle>{activeSource?.name ?? 'Source details'}</DialogTitle>
+            <DialogTitle>{activeSource?.name ?? "Source details"}</DialogTitle>
 
           </DialogHeader>
           
@@ -157,7 +157,7 @@ export function SourceDialog({
             <div ref={highlightRef}>
               <h4 className="font-medium text-sm mb-2">Full Text</h4>
               <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none">
-                <Response>{getTextWithMarkdownHighlight(activeSource?.text ?? '')}</Response>
+                <Response>{getTextWithMarkdownHighlight(activeSource?.text ?? "")}</Response>
               </div>
             </div>
           </div>

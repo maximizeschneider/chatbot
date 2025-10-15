@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from "express";
 
 interface ConfigOption {
   name: string;
@@ -9,12 +9,12 @@ interface ConfigOption {
 const router = Router();
 
 const DUMMY_CONFIGS: ConfigOption[] = [
-  { name: 'Production Config', publishedToMain: false, someShit: 'some shit'  },
-  { name: 'Development Config', publishedToMain: true, someShit: 'some shit' },
-  { name: 'Test Config', publishedToMain: false, someShit: 'some shit' }
+  { name: "Production Config", publishedToMain: false, someShit: "some shit"  },
+  { name: "Development Config", publishedToMain: true, someShit: "some shit" },
+  { name: "Test Config", publishedToMain: false, someShit: "some shit" }
 ];
 
-router.get('/', (_req, res) => {
+router.get("/", (_req, res) => {
   res.json(DUMMY_CONFIGS);
 });
 

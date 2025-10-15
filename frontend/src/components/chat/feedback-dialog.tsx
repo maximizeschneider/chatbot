@@ -5,13 +5,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
-import type { PendingFeedback } from '@/types/chat';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import type { PendingFeedback } from "@/types/chat";
 
 interface FeedbackOption {
   value: string;
@@ -35,13 +35,13 @@ export function FeedbackDialog({
   onExplanationChange,
   onSubmit,
 }: FeedbackDialogProps) {
-  const selectedReason = pendingFeedback?.selectedReason ?? '';
-  const explanation = pendingFeedback?.customExplanation ?? '';
+  const selectedReason = pendingFeedback?.selectedReason ?? "";
+  const explanation = pendingFeedback?.customExplanation ?? "";
 
   const selectedOption = options.find(
     (option) => option.value === selectedReason
   );
-  const requiresExplanation = selectedOption?.value === 'other';
+  const requiresExplanation = selectedOption?.value === "other";
   const canSubmit =
     !!pendingFeedback &&
     !!pendingFeedback.selectedReason &&
@@ -71,10 +71,10 @@ export function FeedbackDialog({
                   key={option.value}
                   htmlFor={id}
                   className={cn(
-                    'flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm transition-colors',
+                    "flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm transition-colors",
                     isSelected
-                      ? 'border-primary bg-primary/5'
-                      : 'hover:border-primary/60'
+                      ? "border-primary bg-primary/5"
+                      : "hover:border-primary/60"
                   )}
                 >
                   <RadioGroupItem value={option.value} id={id} />

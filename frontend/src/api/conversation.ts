@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ConversationData } from '@/types/chat';
-import { apiFetch, buildApiUrl } from './client';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ConversationData } from "@/types/chat";
+import { apiFetch, buildApiUrl } from "./client";
 
 type ConversationsResponse = {
   conversations: ConversationData[];
@@ -16,9 +16,9 @@ type CreateConversationResponse = {
 
 export const useConversationsQuery = () =>
   useQuery<ConversationData[]>({
-    queryKey: ['conversations'],
+    queryKey: ["conversations"],
     queryFn: async () => {
-      const data = await apiFetch<ConversationsResponse>('/conversations');
+      const data = await apiFetch<ConversationsResponse>("/conversations");
       return data.conversations ?? [];
     },
     staleTime: 5 * 60 * 1000,
@@ -28,17 +28,17 @@ export const useCreateConversationMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation<ConversationData, Error, CreateConversationRequest>({
-    mutationKey: ['create-conversation'],
+    mutationKey: ["create-conversation"],
     mutationFn: async (payload) => {
-      const data = await apiFetch<CreateConversationResponse>('/conversations', {
-        method: 'POST',
+      const data = await apiFetch<CreateConversationResponse>("/conversations", {
+        method: "POST",
         body: JSON.stringify(payload),
       });
       return data.conversation;
     },
     onSuccess: (createdConversation) => {
       queryClient.setQueryData<ConversationData[] | undefined>(
-        ['conversations'],
+        ["conversations"],
         (current) => (current ? [createdConversation, ...current] : [createdConversation])
       );
     },
@@ -49,10 +49,10 @@ export const useDeleteConversationMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, { conversationId: string }>({
-    mutationKey: ['delete-conversation'],
+    mutationKey: ["delete-conversation"],
     mutationFn: async ({ conversationId }) => {
       const response = await fetch(buildApiUrl(`/conversations/${conversationId}`), {
-        method: 'DELETE',
+        method: "DELETE",
       });
       if (!response.ok) {
         throw new Error(
@@ -62,7 +62,7 @@ export const useDeleteConversationMutation = () => {
     },
     onSuccess: (_result, variables) => {
       queryClient.setQueryData<ConversationData[] | undefined>(
-        ['conversations'],
+        ["conversations"],
         (current) =>
           current?.filter((conversation) => conversation.id !== variables.conversationId) ??
           current

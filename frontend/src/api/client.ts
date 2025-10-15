@@ -1,10 +1,10 @@
-const DEFAULT_API_BASE_URL = 'http://localhost:8787/api';
+const DEFAULT_API_BASE_URL = "http://localhost:8787/api";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? DEFAULT_API_BASE_URL;
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? DEFAULT_API_BASE_URL;
 
 export const buildApiUrl = (path: string) =>
-  `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 
 export async function apiFetch<TResponse>(
   path: string,
@@ -12,7 +12,7 @@ export async function apiFetch<TResponse>(
 ): Promise<TResponse> {
   const response = await fetch(buildApiUrl(path), {
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
     ...init,

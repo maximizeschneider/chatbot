@@ -9,8 +9,9 @@ const ChatBodySchema = z.object({
   stream: z.boolean().optional().default(true),
   model: z.string().optional().default('gpt-4o-mini'),
   conversationId: z.string().optional(),
-  config: z.string().optional(),
-  profile: z.string().optional(),
+  configName: z.string().optional(),
+  profile: z.any().optional(),
+  upn: z.string().optional(),
 });
 
 const HARDCODED_SOURCES = [
@@ -65,10 +66,9 @@ const handleStreamingChat = async (req: Request, res: Response) => {
     });
   }
 
-  const { prompt, stream, model, conversationId, config, profile } = parsed.data;
+  const { prompt, stream, model, conversationId, configName, profile } = parsed.data;
 
   const sharedSystemPrompt = `You are a helpful assistant. Provide thoughtful, well-structured answers that use the available context.
-Current configuration: ${config ?? 'Default'}.
 Active user profile: ${profile ?? 'Guest'}.
 Conversation context id: ${conversationId ?? 'none supplied'}.`;
 
@@ -83,7 +83,7 @@ Conversation context id: ${conversationId ?? 'none supplied'}.`;
     return res.json({
       message: text,
       sources: HARDCODED_SOURCES,
-      metadata: { conversationId, config, profile },
+      metadata: { conversationId, configName, profile },
     });
   }
 
@@ -141,7 +141,7 @@ Conversation context id: ${conversationId ?? 'none supplied'}.`;
       sources: HARDCODED_SOURCES,
       metadata: {
         conversationId,
-        config,
+        configName,
         profile,
       },
     };

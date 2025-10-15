@@ -1,38 +1,38 @@
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   MessageSquareIcon,
   PlusIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   Trash2Icon,
-} from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { ConversationData } from '@/types/chat';
-import type { ConfigOption } from '@/api/config';
-import type { UserProfile } from '@/api/user-profile';
+} from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { ConversationData } from "@/types/chat";
+import type { ConfigOption } from "@/api/config";
+import type { UserProfile } from "@/api/user-profile";
 
 interface ChatSidebarProps {
   conversations: ConversationData[];
   activeConversationId: string;
   configOptions: ConfigOption[];
-  selectedConfig: string | null;
+  selectedConfigName: string | null;
   userProfileOptions: UserProfile[];
-  selectedProfile: string | null;
+  selectedProfile: UserProfile | null;
   isOpen: boolean;
   onToggle: () => void;
   onCreateConversation: () => void;
   onSelectConversation: (conversationId: string) => void;
-  onSelectConfig: (config: string | null) => void;
-  onSelectProfile: (profile: string | null) => void;
+  onSelectConfigName: (configName: string) => void;
+  onSelectProfile: (profile: UserProfile | null) => void;
   onDeleteConversation: (conversationId: string) => void;
 }
 
@@ -40,14 +40,14 @@ export function ChatSidebar({
   conversations,
   activeConversationId,
   configOptions,
-  selectedConfig,
+  selectedConfigName,
   userProfileOptions,
   selectedProfile,
   isOpen,
   onToggle,
   onCreateConversation,
   onSelectConversation,
-  onSelectConfig,
+  onSelectConfigName,
   onSelectProfile,
   onDeleteConversation,
 }: ChatSidebarProps) {
@@ -121,9 +121,9 @@ export function ChatSidebar({
               Configuration
             </p>
             <Select
-              value={selectedConfig ?? undefined}
+              value={selectedConfigName ?? undefined}
               onValueChange={(value) => {
-                onSelectConfig(value);
+                onSelectConfigName(value);
               }}
             >
               <SelectTrigger className="w-full">
@@ -144,9 +144,9 @@ export function ChatSidebar({
               User Profile
             </p>
             <Select
-              value={selectedProfile ?? undefined}
+              value={selectedProfile?.name ?? undefined}
               onValueChange={(value) => {
-                onSelectProfile(value);
+                onSelectProfile(userProfileOptions.find((p) => p.name === value) ?? null);
               }}
             >
               <SelectTrigger className="w-full">
@@ -187,7 +187,7 @@ export function ChatSidebar({
               >
                 <Button
                   onClick={() => onSelectConversation(conversation.id)}
-                  variant={isActive ? 'secondary' : 'ghost'}
+                  variant={isActive ? "secondary" : "ghost"}
                   className="flex-1 justify-start gap-2 text-left"
                 >
                   <MessageSquareIcon className="h-4 w-4 shrink-0" />

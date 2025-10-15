@@ -2,49 +2,45 @@ import {
   Conversation,
   ConversationContent,
   type ConversationProps,
-} from '@/components/ai-elements/conversation';
-import { Message, MessageContent } from '@/components/ai-elements/message';
-import { Response } from '@/components/ai-elements/response';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+} from "@/components/ai-elements/conversation";
+import { Message, MessageContent } from "@/components/ai-elements/message";
+import { Response } from "@/components/ai-elements/response";
+import { Button } from "@/components/ui/button";
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from '@/components/ui/carousel';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@/components/ui/carousel";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import {
-  AlertTriangleIcon,
   ChevronDownIcon,
   HelpCircleIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
-} from 'lucide-react';
-import { Loader } from '@/components/ai-elements/loader';
-import type { ChatMessage, Source } from '@/types/chat';
-import { useEffect, type RefObject } from 'react';
-import { useStickToBottomContext } from 'use-stick-to-bottom';
+} from "lucide-react";
+import { Loader } from "@/components/ai-elements/loader";
+import type { ChatMessage, Source } from "@/types/chat";
+import { useEffect, type RefObject } from "react";
+import { useStickToBottomContext } from "use-stick-to-bottom";
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
   statusUpdate: string;
   isStreaming: boolean;
   streamingMessage: string;
-  error: string | null;
-  onDismissError?: () => void;
   messagesEndRef: RefObject<HTMLDivElement | null>;
   onSelectSource: (source: Source, sources: Source[]) => void;
   onFeedback: (
     messageId: string,
-    feedback: 'up' | 'down' | null,
+    feedback: "up" | "down" | null,
     reason?: string
   ) => void;
   onNegativeFeedbackClick: (message: ChatMessage) => void;
@@ -56,7 +52,7 @@ interface ChatMessagesProps {
   isSourcesLoading: (messageId: string) => boolean;
   getSourcesError: (messageId: string) => string | null;
   onToggleSources: (message: ChatMessage) => void;
-  stickToBottomContextRef?: ConversationProps['contextRef'];
+  stickToBottomContextRef?: ConversationProps["contextRef"];
   onStickToBottomEscapeChange?: (escaped: boolean) => void;
 }
 
@@ -65,8 +61,6 @@ export function ChatMessages({
   statusUpdate,
   isStreaming,
   streamingMessage,
-  error,
-  onDismissError,
   messagesEndRef,
   onSelectSource,
   onFeedback,
@@ -87,7 +81,7 @@ export function ChatMessages({
       <StickStateObserver onEscapeChange={onStickToBottomEscapeChange} />
       <ConversationContent className="max-w-3xl mx-auto w-full">
         {messages.map((message) => {
-          const isAssistant = message.role === 'assistant';
+          const isAssistant = message.role === "assistant";
           const isGeneratingForMessage =
             isGeneratingQuestions &&
             activeQuestionMessageId === message.id;
@@ -104,8 +98,8 @@ export function ChatMessages({
               <MessageContent
                 variant="flat"
                 className={cn(
-                  'max-w-none',
-                  isAssistant ? 'w-full' : 'max-w-[80%]'
+                  "max-w-none",
+                  isAssistant ? "w-full" : "max-w-[80%]"
                 )}
               >
                 {isAssistant ? (
@@ -128,17 +122,17 @@ export function ChatMessages({
                           onClick={() =>
                             onFeedback(
                               message.id,
-                              message.feedback === 'up' ? null : 'up'
+                              message.feedback === "up" ? null : "up"
                             )
                           }
                           className={cn(
-                            'h-8 px-2',
-                            message.feedback === 'up' && 'bg-accent'
+                            "h-8 px-2",
+                            message.feedback === "up" && "bg-accent"
                           )}
                           aria-label={
-                            message.feedback === 'up'
-                              ? 'Remove positive feedback'
-                              : 'Give positive feedback'
+                            message.feedback === "up"
+                              ? "Remove positive feedback"
+                              : "Give positive feedback"
                           }
                         >
                           <ThumbsUpIcon className="h-3 w-3" />
@@ -156,22 +150,22 @@ export function ChatMessages({
                           size="sm"
                           onClick={() => onNegativeFeedbackClick(message)}
                           className={cn(
-                            'h-8 px-2',
-                            message.feedback === 'down' && 'bg-accent'
+                            "h-8 px-2",
+                            message.feedback === "down" && "bg-accent"
                           )}
                           aria-label={
-                            message.feedback === 'down'
-                              ? 'Remove negative feedback'
-                              : 'Give negative feedback'
+                            message.feedback === "down"
+                              ? "Remove negative feedback"
+                              : "Give negative feedback"
                           }
                         >
                           <ThumbsDownIcon className="h-3 w-3" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="top">
-                        {message.feedback === 'down'
-                          ? 'Remove or edit feedback'
-                          : 'This missed the mark'}
+                        {message.feedback === "down"
+                          ? "Remove or edit feedback"
+                          : "This missed the mark"}
                       </TooltipContent>
                     </Tooltip>
 
@@ -207,7 +201,7 @@ export function ChatMessages({
                           disabled={sourcesLoading}
                           aria-expanded={sourcesVisible}
                           aria-label={
-                            sourcesVisible ? 'Hide sources' : 'Show sources'
+                            sourcesVisible ? "Hide sources" : "Show sources"
                           }
                         >
                           {sourcesLoading ? (
@@ -215,15 +209,15 @@ export function ChatMessages({
                           ) : (
                             <ChevronDownIcon
                               className={cn(
-                                'h-3 w-3 transition-transform',
-                                sourcesVisible ? 'rotate-0' : '-rotate-90'
+                                "h-3 w-3 transition-transform",
+                                sourcesVisible ? "rotate-0" : "-rotate-90"
                               )}
                             />
                           )}
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="top">
-                        {sourcesVisible ? 'Hide sources' : 'Show sources'}
+                        {sourcesVisible ? "Hide sources" : "Show sources"}
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -248,7 +242,7 @@ export function ChatMessages({
                           </h4>
                           <Carousel
                             opts={{
-                              align: 'start',
+                              align: "start",
                               loop: false,
                             }}
                             className="w-full"
@@ -319,7 +313,7 @@ export function ChatMessages({
           );
         })}
 
-        {statusUpdate && (
+        {isStreaming && streamingMessage.length === 0 && (
           <Message from="assistant">
             <MessageContent variant="flat" className="w-full">
               <div className="flex items-center gap-2 text-muted-foreground text-sm italic">
@@ -336,32 +330,6 @@ export function ChatMessages({
               <Response className="prose prose-sm dark:prose-invert max-w-none">
                 {streamingMessage}
               </Response>
-              <span className="inline-block w-1 h-4 bg-foreground ml-1 animate-pulse" />
-            </MessageContent>
-          </Message>
-        )}
-
-        {error && (
-          <Message from="assistant">
-            <MessageContent variant="flat" className="w-full max-w-none">
-              <Alert variant="destructive" className="flex items-start gap-3">
-                <AlertTriangleIcon className="h-4 w-4 mt-0.5" />
-                <div className="flex-1">
-                  <AlertTitle className="text-sm">Something went wrong</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </div>
-                {onDismissError && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 -mr-2 text-xs"
-                    onClick={onDismissError}
-                  >
-                    Dismiss
-                  </Button>
-                )}
-              </Alert>
             </MessageContent>
           </Message>
         )}

@@ -1,12 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
 import type { Source } from '@/types/chat';
 import { buildApiUrl } from './client';
+import type { UserProfile } from './user-profile';
 
 export type ChatRequest = {
   prompt: string;
   conversationId?: string;
-  config?: string;
-  profile?: string;
+  configName?: string;
+  profile?: UserProfile;
+  upn?: string;
   model?: string;
   stream?: boolean;
   signal?: AbortSignal;
@@ -17,7 +19,7 @@ export type ChatCompletionPayload = {
   sources?: Source[];
   metadata?: {
     conversationId?: string;
-    config?: string;
+    configName?: string;
     profile?: string;
   };
 };

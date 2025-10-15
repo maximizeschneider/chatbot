@@ -1,8 +1,8 @@
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
-import { Loader2Icon, SendIcon } from 'lucide-react';
+import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { Loader2Icon, SendIcon } from "lucide-react";
 
 interface ChatInputProps {
   isStreaming: boolean;
@@ -10,7 +10,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput({ isStreaming, onSend }: ChatInputProps) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -19,10 +19,10 @@ export function ChatInput({ isStreaming, onSend }: ChatInputProps) {
 
     const maxHeight = 200;
     const minHeight = 44;
-    textarea.style.height = 'auto';
+    textarea.style.height = "auto";
     const nextHeight = Math.min(maxHeight, Math.max(minHeight, textarea.scrollHeight));
     textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY = nextHeight >= maxHeight ? 'auto' : 'hidden';
+    textarea.style.overflowY = nextHeight >= maxHeight ? "auto" : "hidden";
   }, [value]);
 
   const handleSubmit = async () => {
@@ -32,7 +32,7 @@ export function ChatInput({ isStreaming, onSend }: ChatInputProps) {
     }
 
     await onSend(text);
-    setValue('');
+    setValue("");
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -41,7 +41,7 @@ export function ChatInput({ isStreaming, onSend }: ChatInputProps) {
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void handleSubmit();
     }
@@ -58,9 +58,9 @@ export function ChatInput({ isStreaming, onSend }: ChatInputProps) {
           placeholder="Message AI..."
           disabled={isStreaming}
           className={cn(
-            'min-h-[44px] max-h-[200px] flex-1 border-0 bg-transparent px-0 py-2 shadow-none focus-visible:ring-0 resize-none leading-6 text-left'
+            "min-h-[44px] max-h-[200px] flex-1 border-0 bg-transparent px-0 py-2 shadow-none focus-visible:ring-0 resize-none leading-6 text-left"
           )}
-          style={{ overflowY: 'hidden' }}
+          style={{ overflowY: "hidden" }}
         />
         <Button
           type="submit"

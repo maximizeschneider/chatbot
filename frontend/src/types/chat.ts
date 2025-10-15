@@ -7,10 +7,10 @@ export interface Source {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   sources?: Source[];
-  feedback?: 'up' | 'down' | null;
+  feedback?: "up" | "down" | null;
   feedbackReason?: string;
   suggestedQuestions?: string[];
 }
