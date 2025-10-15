@@ -1,29 +1,37 @@
 import { Router } from "express";
 import { z } from "zod";
+import type { ModelMessage } from "ai";
 
 const router = Router();
 
-const conversations = [
+const conversations: { id: string; title: string; messages: ModelMessage[] }[] = [
   {
     id: "seed-1",
     title: "Welcome Conversation",
     messages: [
       {
-        id: "m-1",
-        role: "assistant" as const,
-        content:
-          "Hi there! This is a seeded conversation from the demo API. Ask me anything to get started.",
+        role: "assistant",
+        content: "Hi there! I'm your AI assistant. How can I help you today?",
       },
       {
-        id: "m-2",
-        role: "user" as const,
-        content: "Thanks! How do I submit feedback about responses?",
+        role: "user",
+        content: "What can you help me with?",
       },
       {
-        id: "m-3",
-        role: "assistant" as const,
-        content:
-          "Use the thumbs up or thumbs down actions next to any response—this demo will log them for review.",
+        role: "tool",
+        content: [{
+          type: "tool-result",
+          toolCallId: "get-capabilities-1",
+          toolName: "get_capabilities",
+          output: {
+            type: "text",
+            value: "Available capabilities: code assistance, data analysis, general questions"
+          }
+        }]
+      },
+      {
+        role: "assistant",
+        content: "I can help you with several things including:\n1. Code assistance\n2. Data analysis\n3. General questions\nWhat would you like to explore?",
       },
     ],
   },

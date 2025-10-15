@@ -1,8 +1,19 @@
 import type { Request, Response } from 'express';
 import { Router } from 'express';
 import { z } from 'zod';
-import { stepCountIs, streamText } from 'ai';
+import { stepCountIs, streamText, tool } from 'ai';
 import { openai } from '@/lib/openai';
+
+const someTool = tool({
+  name: 'some_tool',
+  description: 'A tool that does something',
+  inputSchema: z.object({
+    prompt: z.string(),
+  }),
+  execute: async () => {
+    return 'some_tool_response';
+  }
+});
 
 const ChatBodySchema = z.object({
   prompt: z.string().min(1),
@@ -70,14 +81,16 @@ const handleStreamingChat = async (req: Request, res: Response) => {
 
   const sharedSystemPrompt = `You are a helpful assistant. Provide thoughtful, well-structured answers that use the available context.
 Active user profile: ${profile ?? 'Guest'}.
-Conversation context id: ${conversationId ?? 'none supplied'}.`;
+Conversation context id: ${conversationId ?? 'none supplied'}.
+Always call someTool before answering the question.`;
 
   if (!stream) {
     const result = await streamText({
       model: openai(model),
       system: sharedSystemPrompt,
       prompt,
-      stopWhen: stepCountIs(5)
+      stopWhen: stepCountIs(5),
+      tools: { someTool }
     });
     const text = await result.text;
     return res.json({
@@ -108,7 +121,8 @@ Conversation context id: ${conversationId ?? 'none supplied'}.`;
       model: openai(model),
       system: sharedSystemPrompt,
       prompt,
-      stopWhen: stepCountIs(5)
+      stopWhen: stepCountIs(5),
+      tools: { someTool }
     });
 
     let accumulatedText = '';
