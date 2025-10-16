@@ -224,10 +224,10 @@ export default function App() {
       }));
 
       try {
-        const fetchedMessages = await fetchConversationMessages(conversationId);
+        const fetchedMessages = await fetchConversationMessages({ conversationId });
         setMessagesByConversation((current) => ({
           ...current,
-          [conversationId]: fetchedMessages,
+          [conversationId]: fetchedMessages.messages,
         }));
       } catch (error) {
         const message =
@@ -837,10 +837,11 @@ export default function App() {
       error: null,
     });
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-user`,
       conversationId,
       role: "user",
       content: text,
+      createdAt: Date.now(),
     };
 
     setMessagesByConversation((prev) => ({
@@ -871,11 +872,12 @@ export default function App() {
       const finalPayload = await chatMutation.mutateAsync(chatRequest);
 
       const assistantMessage: ChatMessage = {
-        id: `${Date.now()}-assistant`,
+        id: `msg-${Date.now()}-assistant`,
         conversationId,
         role: "assistant",
         content: finalPayload.message,
         feedback: null,
+        createdAt: Date.now(),
       };
       const normalizedSources = normalizeSources(finalPayload.sources);
       if (normalizedSources !== undefined) {
