@@ -37,6 +37,9 @@ interface ChatMessagesProps {
   isStreaming: boolean;
   streamingMessage: string;
   isLoadingMessages: boolean;
+  hasMoreMessages: boolean;
+  isLoadingMoreMessages: boolean;
+  onLoadMore: () => void;
   messagesEndRef: RefObject<HTMLDivElement | null>;
   onSelectSource: (source: Source, sources: Source[]) => void;
   onFeedback: (
@@ -77,28 +80,51 @@ export function ChatMessages({
   stickToBottomContextRef,
   onStickToBottomEscapeChange,
   isLoadingMessages,
+  hasMoreMessages,
+  isLoadingMoreMessages,
+  onLoadMore,
 }: ChatMessagesProps) {
   return (
     <div className="flex-1 relative">
       <Conversation className="flex-1" contextRef={stickToBottomContextRef}>
-      <StickStateObserver onEscapeChange={onStickToBottomEscapeChange} />
-      <ConversationContent className="max-w-3xl mx-auto w-full">
-        {messages.map((message) => {
-          const isAssistant = message.role === "assistant";
-          const isGeneratingForMessage =
-            isGeneratingQuestions &&
-            activeQuestionMessageId === message.id;
-          const sourcesVisible = isSourcesVisible(message.id);
-          const sourcesLoading = isSourcesLoading(message.id);
-          const sourcesList = message.sources;
-          const sourcesError = getSourcesError(message.id);
-          const hasLoadedSources =
-            message.sources !== undefined || sourcesError !== null;
-          const hasSources = (sourcesList?.length ?? 0) > 0;
+        <StickStateObserver onEscapeChange={onStickToBottomEscapeChange} />
+        <ConversationContent className="max-w-3xl mx-auto w-full">
+          {hasMoreMessages ? (
+            <div className="flex justify-center mb-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onLoadMore}
+                disabled={isLoadingMoreMessages}
+                className="gap-2"
+              >
+                {isLoadingMoreMessages ? (
+                  <>
+                    <Loader size={12} />
+                    <span>Loading previous messages...</span>
+                  </>
+                ) : (
+                  <span>Load previous messages</span>
+                )}
+              </Button>
+            </div>
+          ) : null}
+          {messages.map((message) => {
+            const isAssistant = message.role === "assistant";
+            const isGeneratingForMessage =
+              isGeneratingQuestions &&
+              activeQuestionMessageId === message.id;
+            const sourcesVisible = isSourcesVisible(message.id);
+            const sourcesLoading = isSourcesLoading(message.id);
+            const sourcesList = message.sources;
+            const sourcesError = getSourcesError(message.id);
+            const hasLoadedSources =
+              message.sources !== undefined || sourcesError !== null;
+            const hasSources = (sourcesList?.length ?? 0) > 0;
 
-          return (
-            <Message key={message.id} from={message.role}>
-              <MessageContent
+            return (
+              <Message key={message.id} from={message.role}>
+                <MessageContent
                 variant="flat"
                 className={cn(
                   "max-w-none",
@@ -258,13 +284,13 @@ export function ChatMessages({
                                 >
                                   <Card
                                     className="cursor-pointer hover:bg-accent/50 transition-colors h-full max-w-[240px] mx-auto flex flex-col"
-                                  onClick={() =>
-                                    onSelectSource(
-                                      source,
-                                      sourcesList ?? []
-                                    )
-                                  }
-                                >
+                                    onClick={() =>
+                                      onSelectSource(
+                                        source,
+                                        sourcesList ?? []
+                                      )
+                                    }
+                                  >
                                   <CardContent className="p-3 flex-1 flex flex-col">
                                     <h5 className="font-medium text-sm line-clamp-2">
                                       {source.name}
@@ -337,9 +363,9 @@ export function ChatMessages({
           </Message>
         )}
 
-        <div ref={messagesEndRef} />
-      </ConversationContent>
-    </Conversation>
+          <div ref={messagesEndRef} />
+        </ConversationContent>
+      </Conversation>
       {isLoadingMessages ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="flex items-center gap-2 rounded-md bg-background/90 px-4 py-2 shadow">

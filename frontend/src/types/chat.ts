@@ -10,6 +10,7 @@ export interface ChatMessage {
   conversationId: string;
   role: "user" | "assistant";
   content: string;
+  createdAt: number;
   sources?: Source[];
   feedback?: "up" | "down" | null;
   feedbackReason?: string;

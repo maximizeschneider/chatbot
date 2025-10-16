@@ -12,6 +12,15 @@ const UpdateConversationSchema = z.object({
   title: z.string().min(1),
 });
 
+const MessageQuerySchema = z.object({
+  limit: z
+    .preprocess((value) => (typeof value === "string" ? Number(value) : value), z.number().int().positive().max(100))
+    .optional(),
+  cursor: z
+    .preprocess((value) => (typeof value === "string" ? Number(value) : value), z.number().int().nonnegative())
+    .optional(),
+});
+
 router.get("/", (_req, res) => {
   res.json({ conversations });
 });
@@ -63,19 +72,44 @@ router.get("/:conversationId/messages", (req, res) => {
     return res.status(404).json({ error: "Conversation not found" });
   }
 
-  const conversationMessages = messages
+  const parsedQuery = MessageQuerySchema.safeParse(req.query);
+  if (!parsedQuery.success) {
+    return res.status(400).json({
+      error: "Invalid query parameters",
+      details: parsedQuery.error.flatten(),
+    });
+  }
+
+  const { limit = 10, cursor } = parsedQuery.data;
+
+  const sortedMessages = messages
     .filter(
       (message) =>
         message.conversationId === conversationId && message.role !== "tool"
     )
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  const filteredByCursor = typeof cursor === "number"
+    ? sortedMessages.filter((message) => message.createdAt < cursor)
+    : sortedMessages;
+
+  const page = filteredByCursor.slice(0, limit);
+  const nextCursor =
+    page.length === limit
+      ? page[page.length - 1]?.createdAt ?? null
+      : null;
+
+  const orderedMessages = [...page]
+    .sort((a, b) => a.createdAt - b.createdAt)
     .map((message) => ({
       id: message.id,
       conversationId: message.conversationId,
       role: message.role,
       content: typeof message.content === "string" ? message.content : "",
+      createdAt: message.createdAt,
     }));
 
-  res.json({ messages: conversationMessages });
+  res.json({ messages: orderedMessages, nextCursor });
 });
 
 router.delete("/:conversationId", (req, res) => {
