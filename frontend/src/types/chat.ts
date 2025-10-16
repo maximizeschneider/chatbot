@@ -7,6 +7,7 @@ export interface Source {
 
 export interface ChatMessage {
   id: string;
+  conversationId: string;
   role: "user" | "assistant";
   content: string;
   sources?: Source[];
@@ -18,7 +19,6 @@ export interface ChatMessage {
 export interface ConversationData {
   id: string;
   title: string;
-  messages: ChatMessage[];
 }
 
 export interface PendingFeedback {

@@ -10,11 +10,12 @@ import { useChatMutation } from "@/api/chat";
 import type { ChatRequest } from "@/api/chat";
 import { useFeedbackMutation } from "@/api/feedback";
 import { useQuestionGenerationMutation } from "@/api/questions";
-import { fetchMessageSources } from "@/api/message";
+import { fetchConversationMessages, fetchMessageSources } from "@/api/message";
 import {
   useConversationsQuery,
   useCreateConversationMutation,
   useDeleteConversationMutation,
+  useUpdateConversationMutation,
 } from "@/api/conversation";
 import { useConfigQuery, type ConfigOption } from "@/api/config";
 import { useUserProfileQuery, type UserProfile } from "@/api/user-profile";
@@ -29,7 +30,6 @@ import type { StickToBottomContext } from "use-stick-to-bottom";
 const INITIAL_CONVERSATION: ConversationData = {
   id: "local-seed",
   title: "New Conversation",
-  messages: [],
 };
 
 interface ActiveStreamState {
@@ -89,7 +89,6 @@ const parseFeedbackReason = (
       option.label.toLowerCase() === normalized.toLowerCase() ||
       option.value === normalized
   );
-
   if (matchedOption) {
     if (matchedOption.value === OTHER_FEEDBACK_VALUE) {
       const explanation = normalized
@@ -165,6 +164,15 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [pendingFeedback, setPendingFeedback] =
     useState<PendingFeedback | null>(null);
+  const [messagesByConversation, setMessagesByConversation] = useState<
+    Record<string, ChatMessage[]>
+  >({
+    [INITIAL_CONVERSATION.id]: [],
+  });
+  const [messagesLoadingByConversation, setMessagesLoadingByConversation] =
+    useState<Record<string, boolean>>({});
+  const [_messagesErrorByConversation, setMessagesErrorByConversation] =
+    useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomContextRef = useRef<StickToBottomContext | null>(null);
   const hasUserScrolledDuringStreamRef = useRef(false);
@@ -180,6 +188,7 @@ export default function App() {
     useState<Record<string, Record<string, string>>>({});
   const visibleSourcesRef = useRef(visibleSourcesByConversation);
   const conversationsRef = useRef(conversations);
+  const messagesRef = useRef(messagesByConversation);
 
   useEffect(() => {
     visibleSourcesRef.current = visibleSourcesByConversation;
@@ -190,9 +199,65 @@ export default function App() {
   }, [conversations]);
 
   useEffect(() => {
+    messagesRef.current = messagesByConversation;
+  }, [messagesByConversation]);
+
+  const loadMessagesForConversation = useCallback(
+    async (conversationId: string, { force = false }: { force?: boolean } = {}) => {
+      if (!conversationId) {
+        return;
+      }
+
+      if (!force && messagesRef.current[conversationId] !== undefined) {
+        return;
+      }
+
+      setMessagesErrorByConversation((current) => {
+        const next = { ...current };
+        delete next[conversationId];
+        return next;
+      });
+
+      setMessagesLoadingByConversation((current) => ({
+        ...current,
+        [conversationId]: true,
+      }));
+
+      try {
+        const fetchedMessages = await fetchConversationMessages(conversationId);
+        setMessagesByConversation((current) => ({
+          ...current,
+          [conversationId]: fetchedMessages,
+        }));
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to load messages for this conversation.";
+        setMessagesErrorByConversation((current) => ({
+          ...current,
+          [conversationId]: message,
+        }));
+        toast.error("Failed to load messages", {
+          description: message,
+        });
+      } finally {
+        setMessagesLoadingByConversation((current) => {
+          const next = { ...current };
+          delete next[conversationId];
+          return next;
+        });
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
     if (!activeConversationId) {
       return;
     }
+
+    void loadMessagesForConversation(activeConversationId);
 
     setVisibleSourcesByConversation((current) => {
       if (current[activeConversationId] && Object.keys(current[activeConversationId]).length === 0) {
@@ -224,7 +289,7 @@ export default function App() {
       delete next[activeConversationId];
       return next;
     });
-  }, [activeConversationId]);
+  }, [activeConversationId, loadMessagesForConversation]);
 
   const { data: configData, isError: isConfigError, error: configError } = useConfigQuery();
   const { data: userProfileData, isError: isProfileError, error: profileError } = useUserProfileQuery();
@@ -300,6 +365,9 @@ export default function App() {
       if (remoteConversations.length > 0) {
         setConversations(remoteConversations);
         setActiveConversationId(remoteConversations[0].id);
+        setMessagesByConversation({});
+        setMessagesLoadingByConversation({});
+        setMessagesErrorByConversation({});
       }
       setHasInitializedConversations(true);
     }
@@ -344,53 +412,63 @@ export default function App() {
   const feedbackMutation = useFeedbackMutation();
   const questionMutation = useQuestionGenerationMutation();
   const createConversationMutation = useCreateConversationMutation();
+  const updateConversationMutation = useUpdateConversationMutation();
   const deleteConversationMutation = useDeleteConversationMutation();
 
-  const activeConversation = conversations.find(
-    (conv) => conv.id === activeConversationId
-  );
+  const activeMessages =
+    messagesByConversation[activeConversationId] ?? [];
+
   const loadSourcesForMessage = useCallback(
     async (conversationId: string, messageId: string) => {
-      const conversation = conversationsRef.current.find(
+      const conversationExists = conversationsRef.current.some(
         (conv) => conv.id === conversationId
       );
-      const message = conversation?.messages.find((msg) => msg.id === messageId);
+      const messagesForConversation = messagesRef.current[conversationId];
+      const message = messagesForConversation?.find(
+        (msg) => msg.id === messageId
+      );
 
-      if (!conversation || !message || message.role !== "assistant") {
+      if (!conversationExists || !message || message.role !== "assistant") {
         return;
       }
 
       if (message.sources !== undefined) {
-      setLoadingSourcesByConversation((current) => {
-        const conversationLoading = current[conversationId];
-        if (!conversationLoading || conversationLoading[messageId] === undefined) {
-          return current;
-        }
-        const { [messageId]: _removed, ...rest } = conversationLoading;
-        const next = { ...current };
-        if (Object.keys(rest).length > 0) {
-          next[conversationId] = rest;
-        } else {
-          delete next[conversationId];
-        }
-        return next;
-      });
-      setSourcesErrorByConversation((current) => {
-        const conversationErrors = current[conversationId];
-        if (!conversationErrors || conversationErrors[messageId] === undefined) {
-          return current;
-        }
-        const { [messageId]: _removed, ...rest } = conversationErrors;
-        const next = { ...current };
-        if (Object.keys(rest).length > 0) {
-          next[conversationId] = rest;
-        } else {
-          delete next[conversationId];
-        }
-        return next;
-      });
-      return;
-    }
+        setLoadingSourcesByConversation((current) => {
+          const conversationLoading = current[conversationId];
+          if (
+            !conversationLoading ||
+            conversationLoading[messageId] === undefined
+          ) {
+            return current;
+          }
+          const { [messageId]: _removed, ...rest } = conversationLoading;
+          const next = { ...current };
+          if (Object.keys(rest).length > 0) {
+            next[conversationId] = rest;
+          } else {
+            delete next[conversationId];
+          }
+          return next;
+        });
+        setSourcesErrorByConversation((current) => {
+          const conversationErrors = current[conversationId];
+          if (
+            !conversationErrors ||
+            conversationErrors[messageId] === undefined
+          ) {
+            return current;
+          }
+          const { [messageId]: _removed, ...rest } = conversationErrors;
+          const next = { ...current };
+          if (Object.keys(rest).length > 0) {
+            next[conversationId] = rest;
+          } else {
+            delete next[conversationId];
+          }
+          return next;
+        });
+        return;
+      }
 
     try {
       setLoadingSourcesByConversation((current) => ({
@@ -423,18 +501,12 @@ export default function App() {
         if (!visibleSourcesRef.current[conversationId]?.[messageId]) {
           return;
         }
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === conversationId
-              ? {
-                  ...conv,
-                  messages: conv.messages.map((msg) =>
-                    msg.id === messageId ? { ...msg, sources: normalized } : msg
-                  ),
-                }
-              : conv
-          )
-        );
+        setMessagesByConversation((prev) => ({
+          ...prev,
+          [conversationId]: (prev[conversationId] ?? []).map((msg) =>
+            msg.id === messageId ? { ...msg, sources: normalized } : msg
+          ),
+        }));
       } catch (error) {
         if (!visibleSourcesRef.current[conversationId]?.[messageId]) {
           return;
@@ -515,11 +587,16 @@ export default function App() {
     activeStream.conversationId === activeConversationId
       ? activeStream.error
       : null;
+  const isLoadingMessages =
+    !!(
+      activeConversationId &&
+      messagesLoadingByConversation[activeConversationId]
+    );
 
   useEffect(() => {
     scrollToBottom();
   }, [
-    activeConversation?.messages,
+    activeMessages,
     visibleStreamingMessage,
     visibleStatusUpdate,
     visibleError,
@@ -541,21 +618,31 @@ export default function App() {
     const tempConv: ConversationData = {
       id: tempId,
       title: "New Conversation",
-      messages: [],
     };
-    
+
     setConversations((prev) => [tempConv, ...prev]);
+    setMessagesByConversation((prev) => ({
+      ...prev,
+      [tempId]: [],
+    }));
     setActiveConversationId(tempId);
 
     try {
       const created = await createConversationMutation.mutateAsync({
         title: "New Conversation",
       });
-      
+
       // Replace temporary conversation with the real one
       setConversations((prev) =>
         prev.map((conv) => (conv.id === tempId ? created : conv))
       );
+      setMessagesByConversation((prev) => {
+        const { [tempId]: tempMessages = [], ...rest } = prev;
+        return {
+          ...rest,
+          [created.id]: tempMessages,
+        };
+      });
       setActiveConversationId(created.id);
     } catch (error) {
       console.error("Failed to create conversation via API:", error);
@@ -568,50 +655,118 @@ export default function App() {
       setConversations((prev) =>
         prev.map((conv) => (conv.id === tempId ? { ...conv, id: localId } : conv))
       );
+      setMessagesByConversation((prev) => {
+        const { [tempId]: tempMessages = [], ...rest } = prev;
+        return {
+          ...rest,
+          [localId]: tempMessages,
+        };
+      });
       setActiveConversationId(localId);
     }
   };
 
   const updateConversationTitle = (convId: string, firstMessage: string) => {
-    const title = firstMessage.slice(0, 30) + (firstMessage.length > 30 ? "..." : "");
+    const trimmed = firstMessage.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const messageCount = messagesRef.current[convId]?.length ?? 0;
+    if (messageCount > 1) {
+      return;
+    }
+
+    const title =
+      trimmed.slice(0, 30) + (trimmed.length > 30 ? "..." : "");
+
     setConversations((prev) =>
-      prev.map((conv) =>
-        conv.id === convId && conv.messages.length <= 1
-          ? { ...conv, title }
-          : conv
-      )
+      prev.map((conv) => (conv.id === convId ? { ...conv, title } : conv))
     );
+
+    if (convId.startsWith("temp-") || convId.startsWith("local-")) {
+      return;
+    }
+
+    updateConversationMutation.mutate({
+      conversationId: convId,
+      title,
+    });
   };
 
   const deleteConversation = async (conversationId: string) => {
-    // Store the conversation and current state for potential rollback
-    const conversationToDelete = conversations.find((conv) => conv.id === conversationId);
+    const conversationToDelete = conversations.find(
+      (conv) => conv.id === conversationId
+    );
     if (!conversationToDelete) return;
 
     const previousActiveId = activeConversationId;
     const previousConversations = conversations;
+    const previousMessages = messagesByConversation;
 
-    // Optimistic update: remove immediately from UI
-    setConversations((prev) => {
-      const updatedConversations = prev.filter(
-        (conv) => conv.id !== conversationId
-      );
+    const remainingConversations = conversations.filter(
+      (conv) => conv.id !== conversationId
+    );
 
-      if (updatedConversations.length === 0) {
-        const newConversation: ConversationData = {
-          id: Date.now().toString(),
-          title: "New Conversation",
-          messages: [],
+    if (remainingConversations.length === 0) {
+      const newConversation: ConversationData = {
+        id: Date.now().toString(),
+        title: "New Conversation",
+      };
+      setConversations([newConversation]);
+      setActiveConversationId(newConversation.id);
+      setMessagesByConversation((prev) => {
+        const { [conversationId]: _removed, ...rest } = prev;
+        return {
+          ...rest,
+          [newConversation.id]: [],
         };
-        setActiveConversationId(newConversation.id);
-        return [newConversation];
-      }
-
+      });
+    } else {
+      setConversations(remainingConversations);
       if (conversationId === activeConversationId) {
-        setActiveConversationId(updatedConversations[0].id);
+        setActiveConversationId(remainingConversations[0].id);
       }
+      setMessagesByConversation((prev) => {
+        const { [conversationId]: _removed, ...rest } = prev;
+        return rest;
+      });
+    }
 
-      return updatedConversations;
+    setVisibleSourcesByConversation((current) => {
+      if (!current[conversationId]) {
+        return current;
+      }
+      const { [conversationId]: _removed, ...rest } = current;
+      return rest;
+    });
+    setLoadingSourcesByConversation((current) => {
+      if (!current[conversationId]) {
+        return current;
+      }
+      const { [conversationId]: _removed, ...rest } = current;
+      return rest;
+    });
+    setSourcesErrorByConversation((current) => {
+      if (!current[conversationId]) {
+        return current;
+      }
+      const { [conversationId]: _removed, ...rest } = current;
+      return rest;
+    });
+    setMessagesLoadingByConversation((current) => {
+      if (!current[conversationId]) {
+        return current;
+      }
+      const { [conversationId]: _removed, ...rest } = current;
+      return rest;
+    });
+    setMessagesErrorByConversation((current) => {
+      if (!current[conversationId]) {
+        return current;
+      }
+      const { [conversationId]: _removed, ...rest } = current;
+      return rest;
     });
 
     try {
@@ -619,11 +774,14 @@ export default function App() {
     } catch (error) {
       console.error("Failed to delete conversation via API:", error);
       toast.error("Failed to delete conversation", {
-        description: error instanceof Error ? error.message : "Could not delete the conversation. It has been restored.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not delete the conversation. It has been restored.",
       });
-      
-      // Rollback: restore the conversation
+
       setConversations(previousConversations);
+      setMessagesByConversation(previousMessages);
       setActiveConversationId(previousActiveId);
     }
   };
@@ -632,6 +790,12 @@ export default function App() {
     if (!text.trim() || activeStream.isStreaming) return;
 
     const conversationId = activeConversationId;
+    if (!conversationId) {
+      return;
+    }
+
+    const existingMessages = messagesRef.current[conversationId] ?? [];
+    const hadMessages = existingMessages.length > 0;
     setVisibleSourcesByConversation((current) => {
       if (!current[conversationId]) {
         const next = {
@@ -674,19 +838,17 @@ export default function App() {
     });
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
+      conversationId,
       role: "user",
       content: text,
     };
 
-    setConversations((prev) =>
-      prev.map((conv) =>
-        conv.id === conversationId
-          ? { ...conv, messages: [...conv.messages, userMessage] }
-          : conv
-      )
-    );
+    setMessagesByConversation((prev) => ({
+      ...prev,
+      [conversationId]: [...(prev[conversationId] ?? []), userMessage],
+    }));
 
-    if ((activeConversation?.messages.length ?? 0) === 0) {
+    if (!hadMessages) {
       updateConversationTitle(conversationId, text);
     }
 
@@ -710,6 +872,7 @@ export default function App() {
 
       const assistantMessage: ChatMessage = {
         id: `${Date.now()}-assistant`,
+        conversationId,
         role: "assistant",
         content: finalPayload.message,
         feedback: null,
@@ -719,13 +882,13 @@ export default function App() {
         assistantMessage.sources = normalizedSources;
       }
 
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === conversationId
-            ? { ...conv, messages: [...conv.messages, assistantMessage] }
-            : conv
-        )
-      );
+      setMessagesByConversation((prev) => ({
+        ...prev,
+        [conversationId]: [
+          ...(prev[conversationId] ?? []),
+          assistantMessage,
+        ],
+      }));
 
       setVisibleSourcesByConversation((current) => {
         const next = {
@@ -809,38 +972,40 @@ export default function App() {
     feedback: "up" | "down" | null,
     reason?: string
   ) => {
+    if (!activeConversationId) {
+      return;
+    }
+
     const trimmedReason = reason?.trim();
 
-    setConversations((prev) =>
-      prev.map((conv) =>
-        conv.id === activeConversationId
-          ? {
-              ...conv,
-              messages: conv.messages.map((msg) =>
-                msg.id === messageId
-                  ? {
-                      ...msg,
-                      feedback,
-                      feedbackReason:
-                        feedback === "down"
-                          ? trimmedReason || undefined
-                          : undefined,
-                    }
-                  : msg
-              ),
-            }
-          : conv
-      )
-    );
+    setMessagesByConversation((prev) => {
+      const messages = prev[activeConversationId];
+      if (!messages) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [activeConversationId]: messages.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                feedback,
+                feedbackReason:
+                  feedback === "down"
+                    ? trimmedReason || undefined
+                    : undefined,
+              }
+            : msg
+        ),
+      };
+    });
 
-    if (activeConversationId) {
-      feedbackMutation.mutate({
-        conversationId: activeConversationId,
-        messageId,
-        feedback,
-        reason: trimmedReason,
-      });
-    }
+    feedbackMutation.mutate({
+      conversationId: activeConversationId,
+      messageId,
+      feedback,
+      reason: trimmedReason,
+    });
   };
 
   const handleNegativeFeedbackClick = (message: ChatMessage) => {
@@ -918,6 +1083,10 @@ export default function App() {
       return;
     }
 
+    if (!activeConversationId) {
+      return;
+    }
+
     try {
       const result = await questionMutation.mutateAsync({
         messageId: message.id,
@@ -926,20 +1095,20 @@ export default function App() {
       });
 
       if (result.questions?.length) {
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === activeConversationId
-              ? {
-                  ...conv,
-                  messages: conv.messages.map((msg) =>
-                    msg.id === message.id
-                      ? { ...msg, suggestedQuestions: result.questions }
-                      : msg
-                  ),
-                }
-              : conv
-          )
-        );
+        setMessagesByConversation((prev) => {
+          const messages = prev[activeConversationId];
+          if (!messages) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [activeConversationId]: messages.map((msg) =>
+              msg.id === message.id
+                ? { ...msg, suggestedQuestions: result.questions }
+                : msg
+            ),
+          };
+        });
       }
     } catch (error) {
       console.error("Failed to generate questions:", error);
@@ -952,26 +1121,29 @@ export default function App() {
       return;
     }
 
-    setConversations((prev) =>
-      prev.map((conv) => {
-        if (conv.id !== activeConversationId) {
-          return conv;
-        }
+    if (!activeConversationId) {
+      return;
+    }
 
-        return {
-          ...conv,
-          messages: conv.messages.map((msg) => {
-            if (msg.id !== messageId) {
-              return msg;
-            }
+    setMessagesByConversation((prev) => {
+      const messages = prev[activeConversationId];
+      if (!messages) {
+        return prev;
+      }
 
-            const { suggestedQuestions: _removed, ...messageWithoutSuggestions } =
-              msg;
-            return messageWithoutSuggestions;
-          }),
-        };
-      })
-    );
+      return {
+        ...prev,
+        [activeConversationId]: messages.map((msg) => {
+          if (msg.id !== messageId) {
+            return msg;
+          }
+
+          const { suggestedQuestions: _removed, ...messageWithoutSuggestions } =
+            msg;
+          return messageWithoutSuggestions;
+        }),
+      };
+    });
 
     void handleSendMessage(text);
   };
@@ -1091,10 +1263,11 @@ export default function App() {
 
         <div className="flex-1 flex flex-col">
           <ChatMessages
-            messages={activeConversation?.messages ?? []}
+            messages={activeMessages}
             statusUpdate={visibleStatusUpdate}
             isStreaming={isActiveConversationStreaming}
             streamingMessage={visibleStreamingMessage}
+            isLoadingMessages={isLoadingMessages}
             isSourcesVisible={(messageId) =>
               !!visibleSourcesByConversation[activeConversationId]?.[messageId]
             }

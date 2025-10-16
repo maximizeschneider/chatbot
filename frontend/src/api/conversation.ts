@@ -14,6 +14,15 @@ type CreateConversationResponse = {
   conversation: ConversationData;
 };
 
+type UpdateConversationRequest = {
+  conversationId: string;
+  title: string;
+};
+
+type UpdateConversationResponse = {
+  conversation: ConversationData;
+};
+
 export const useConversationsQuery = () =>
   useQuery<ConversationData[]>({
     queryKey: ["conversations"],
@@ -39,7 +48,69 @@ export const useCreateConversationMutation = () => {
     onSuccess: (createdConversation) => {
       queryClient.setQueryData<ConversationData[] | undefined>(
         ["conversations"],
-        (current) => (current ? [createdConversation, ...current] : [createdConversation])
+        (current) =>
+          current ? [createdConversation, ...current] : [createdConversation]
+      );
+    },
+  });
+};
+
+export const useUpdateConversationMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    ConversationData,
+    Error,
+    UpdateConversationRequest,
+    { previous?: ConversationData[] }
+  >({
+    mutationKey: ["update-conversation"],
+    mutationFn: async ({ conversationId, title }) => {
+      const data = await apiFetch<UpdateConversationResponse>(
+        `/conversations/${conversationId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ title }),
+        }
+      );
+      return data.conversation;
+    },
+    onMutate: async ({ conversationId, title }) => {
+      await queryClient.cancelQueries({ queryKey: ["conversations"] });
+      const previous = queryClient.getQueryData<ConversationData[]>([
+        "conversations",
+      ]);
+
+      queryClient.setQueryData<ConversationData[] | undefined>(
+        ["conversations"],
+        (current) =>
+          current
+            ? current.map((conversation) =>
+                conversation.id === conversationId
+                  ? { ...conversation, title }
+                  : conversation
+              )
+            : current
+      );
+
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["conversations"], context.previous);
+      }
+    },
+    onSuccess: (updatedConversation) => {
+      queryClient.setQueryData<ConversationData[] | undefined>(
+        ["conversations"],
+        (current) =>
+          current
+            ? current.map((conversation) =>
+                conversation.id === updatedConversation.id
+                  ? updatedConversation
+                  : conversation
+              )
+            : current
       );
     },
   });
@@ -64,8 +135,9 @@ export const useDeleteConversationMutation = () => {
       queryClient.setQueryData<ConversationData[] | undefined>(
         ["conversations"],
         (current) =>
-          current?.filter((conversation) => conversation.id !== variables.conversationId) ??
-          current
+          current?.filter(
+            (conversation) => conversation.id !== variables.conversationId
+          ) ?? current
       );
     },
   });

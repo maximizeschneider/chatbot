@@ -36,6 +36,7 @@ interface ChatMessagesProps {
   statusUpdate: string;
   isStreaming: boolean;
   streamingMessage: string;
+  isLoadingMessages: boolean;
   messagesEndRef: RefObject<HTMLDivElement | null>;
   onSelectSource: (source: Source, sources: Source[]) => void;
   onFeedback: (
@@ -75,9 +76,11 @@ export function ChatMessages({
   onToggleSources,
   stickToBottomContextRef,
   onStickToBottomEscapeChange,
+  isLoadingMessages,
 }: ChatMessagesProps) {
   return (
-    <Conversation className="flex-1" contextRef={stickToBottomContextRef}>
+    <div className="flex-1 relative">
+      <Conversation className="flex-1" contextRef={stickToBottomContextRef}>
       <StickStateObserver onEscapeChange={onStickToBottomEscapeChange} />
       <ConversationContent className="max-w-3xl mx-auto w-full">
         {messages.map((message) => {
@@ -337,6 +340,17 @@ export function ChatMessages({
         <div ref={messagesEndRef} />
       </ConversationContent>
     </Conversation>
+      {isLoadingMessages ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="flex items-center gap-2 rounded-md bg-background/90 px-4 py-2 shadow">
+            <Loader size={16} />
+            <span className="text-sm text-muted-foreground">
+              Loading messages...
+            </span>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
