@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import type { ChatMessage, Source } from "@/types/chat";
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 
 interface ChatMessagesProps {
@@ -37,6 +37,8 @@ interface ChatMessagesProps {
   isStreaming: boolean;
   streamingMessage: string;
   isLoadingMessages: boolean;
+  isLoadingMoreHistory: boolean;
+  hasMoreHistory: boolean;
   messagesEndRef: RefObject<HTMLDivElement | null>;
   onSelectSource: (source: Source, sources: Source[]) => void;
   onFeedback: (
@@ -55,6 +57,7 @@ interface ChatMessagesProps {
   onToggleSources: (message: ChatMessage) => void;
   stickToBottomContextRef?: ConversationProps["contextRef"];
   onStickToBottomEscapeChange?: (escaped: boolean) => void;
+  onLoadMoreHistory: () => void;
 }
 
 export function ChatMessages({
@@ -77,12 +80,61 @@ export function ChatMessages({
   stickToBottomContextRef,
   onStickToBottomEscapeChange,
   isLoadingMessages,
+  isLoadingMoreHistory,
+  hasMoreHistory,
+  onLoadMoreHistory,
 }: ChatMessagesProps) {
+  const topSentinelRef = useRef<HTMLDivElement | null>(null);
+  const scrollElement =
+    stickToBottomContextRef?.current?.scrollRef?.current ?? null;
+
+  useEffect(() => {
+    if (!hasMoreHistory) {
+      return;
+    }
+
+    const sentinel = topSentinelRef.current;
+    if (!sentinel) {
+      return;
+    }
+
+    const root = scrollElement;
+    if (!root) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting && !isLoadingMoreHistory) {
+          onLoadMoreHistory();
+        }
+      },
+      {
+        root,
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [scrollElement, hasMoreHistory, isLoadingMoreHistory, onLoadMoreHistory]);
+
   return (
     <div className="flex-1 relative">
       <Conversation className="flex-1" contextRef={stickToBottomContextRef}>
         <StickStateObserver onEscapeChange={onStickToBottomEscapeChange} />
         <ConversationContent className="max-w-3xl mx-auto w-full">
+          <div ref={topSentinelRef} aria-hidden className="h-1" />
+          {hasMoreHistory && isLoadingMoreHistory ? (
+            <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+              <Loader size={12} />
+              Loading previous messages...
+            </div>
+          ) : null}
           {messages.map((message) => {
             const isAssistant = message.role === "assistant";
             const isGeneratingForMessage =
