@@ -27,11 +27,6 @@ import type {
 } from "@/types/chat";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 
-const INITIAL_CONVERSATION: ConversationData = {
-  id: "local-seed",
-  title: "New Conversation",
-};
-
 interface ActiveStreamState {
   conversationId: string | null;
   isStreaming: boolean;
@@ -147,11 +142,9 @@ const isNegativeFeedbackValue = (
   NEGATIVE_FEEDBACK_OPTIONS.some((option) => option.value === value);
 
 export default function App() {
-  const [conversations, setConversations] = useState<ConversationData[]>([
-    INITIAL_CONVERSATION,
-  ]);
-  const [activeConversationId, setActiveConversationId] = useState<string>(
-    INITIAL_CONVERSATION.id
+  const [conversations, setConversations] = useState<ConversationData[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(
+    null
   );
   const [activeStream, setActiveStream] =
     useState<ActiveStreamState>(INITIAL_STREAM_STATE);
@@ -166,9 +159,7 @@ export default function App() {
     useState<PendingFeedback | null>(null);
   const [messagesByConversation, setMessagesByConversation] = useState<
     Record<string, ChatMessage[]>
-  >({
-    [INITIAL_CONVERSATION.id]: [],
-  });
+  >({});
   const [messagesLoadingByConversation, setMessagesLoadingByConversation] =
     useState<Record<string, boolean>>({});
   const [_messagesErrorByConversation, setMessagesErrorByConversation] =
@@ -186,9 +177,22 @@ export default function App() {
     useState<Record<string, Record<string, boolean>>>({});
   const [sourcesErrorByConversation, setSourcesErrorByConversation] =
     useState<Record<string, Record<string, string>>>({});
+  const [conversationsPrefetchLimit, setConversationsPrefetchLimit] =
+    useState(10);
+  const [nextCursorByConversation, setNextCursorByConversation] =
+    useState<Record<string, number | null>>({});
+  const [
+    loadingOlderMessagesByConversation,
+    setLoadingOlderMessagesByConversation,
+  ] = useState<Record<string, boolean>>({});
   const visibleSourcesRef = useRef(visibleSourcesByConversation);
   const conversationsRef = useRef(conversations);
   const messagesRef = useRef(messagesByConversation);
+  const messagesLoadingRef = useRef(messagesLoadingByConversation);
+  const nextCursorRef = useRef(nextCursorByConversation);
+  const loadingOlderMessagesRef = useRef(loadingOlderMessagesByConversation);
+  const suppressAutoScrollRef = useRef(false);
+  const skipInitialFetchRef = useRef(new Set<string>());
 
   useEffect(() => {
     visibleSourcesRef.current = visibleSourcesByConversation;
@@ -202,13 +206,34 @@ export default function App() {
     messagesRef.current = messagesByConversation;
   }, [messagesByConversation]);
 
+  useEffect(() => {
+    messagesLoadingRef.current = messagesLoadingByConversation;
+  }, [messagesLoadingByConversation]);
+
+  useEffect(() => {
+    nextCursorRef.current = nextCursorByConversation;
+  }, [nextCursorByConversation]);
+
+  useEffect(() => {
+    loadingOlderMessagesRef.current = loadingOlderMessagesByConversation;
+  }, [loadingOlderMessagesByConversation]);
+
   const loadMessagesForConversation = useCallback(
     async (conversationId: string, { force = false }: { force?: boolean } = {}) => {
       if (!conversationId) {
         return;
       }
 
-      if (!force && messagesRef.current[conversationId] !== undefined) {
+      if (!force && skipInitialFetchRef.current.has(conversationId)) {
+        skipInitialFetchRef.current.delete(conversationId);
+        return;
+      }
+
+      if (
+        !force &&
+        (messagesRef.current[conversationId] !== undefined ||
+          messagesLoadingRef.current[conversationId])
+      ) {
         return;
       }
 
@@ -228,6 +253,10 @@ export default function App() {
         setMessagesByConversation((current) => ({
           ...current,
           [conversationId]: fetchedMessages.messages,
+        }));
+        setNextCursorByConversation((current) => ({
+          ...current,
+          [conversationId]: fetchedMessages.nextCursor,
         }));
       } catch (error) {
         const message =
@@ -252,48 +281,160 @@ export default function App() {
     []
   );
 
+  const loadMoreMessagesForConversation = useCallback(
+    async (conversationId: string) => {
+      if (!conversationId) {
+        return;
+      }
+
+      const cursor = nextCursorRef.current[conversationId];
+      if (cursor === null || cursor === undefined) {
+        return;
+      }
+
+      if (loadingOlderMessagesRef.current[conversationId]) {
+        return;
+      }
+
+      const stickContext = stickToBottomContextRef.current;
+      const scrollElement = stickContext?.scrollRef?.current ?? null;
+      const previousScrollHeight = scrollElement?.scrollHeight ?? null;
+      const previousScrollTop = scrollElement?.scrollTop ?? null;
+      suppressAutoScrollRef.current = true;
+
+      setMessagesErrorByConversation((current) => {
+        const next = { ...current };
+        delete next[conversationId];
+        return next;
+      });
+
+      setLoadingOlderMessagesByConversation((current) => ({
+        ...current,
+        [conversationId]: true,
+      }));
+
+      let adjustedScroll = false;
+
+      try {
+        const fetchedMessages = await fetchConversationMessages({
+          conversationId,
+          cursor,
+        });
+
+        setMessagesByConversation((current) => {
+          const existing = current[conversationId] ?? [];
+          const incoming = fetchedMessages.messages;
+          if (incoming.length === 0) {
+            return current;
+          }
+
+          const incomingIds = new Set(incoming.map((message) => message.id));
+          const filteredExisting = existing.filter(
+            (message) => !incomingIds.has(message.id)
+          );
+
+          return {
+            ...current,
+            [conversationId]: [...incoming, ...filteredExisting],
+          };
+        });
+
+        setNextCursorByConversation((current) => ({
+          ...current,
+          [conversationId]: fetchedMessages.nextCursor,
+        }));
+
+        if (
+          scrollElement &&
+          previousScrollHeight !== null &&
+          previousScrollTop !== null
+        ) {
+          requestAnimationFrame(() => {
+            const currentScrollHeight = scrollElement.scrollHeight;
+            scrollElement.scrollTop =
+              previousScrollTop + (currentScrollHeight - previousScrollHeight);
+            suppressAutoScrollRef.current = false;
+          });
+          adjustedScroll = true;
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to load older messages for this conversation.";
+        toast.error("Failed to load messages", {
+          description: message,
+        });
+        setMessagesErrorByConversation((current) => ({
+          ...current,
+          [conversationId]: message,
+        }));
+      } finally {
+        setLoadingOlderMessagesByConversation((current) => {
+          const { [conversationId]: _removed, ...rest } = current;
+          return rest;
+        });
+
+        if (!adjustedScroll) {
+          suppressAutoScrollRef.current = false;
+        }
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     if (!activeConversationId) {
       return;
     }
 
-    void loadMessagesForConversation(activeConversationId);
+    const conversationId = activeConversationId;
+
+    void loadMessagesForConversation(conversationId);
 
     setVisibleSourcesByConversation((current) => {
-      if (current[activeConversationId] && Object.keys(current[activeConversationId]).length === 0) {
+      if (
+        current[conversationId] &&
+        Object.keys(current[conversationId]).length === 0
+      ) {
         return current;
       }
 
       const next = {
         ...current,
-        [activeConversationId]: {},
+        [conversationId]: {},
       };
       visibleSourcesRef.current = next;
       return next;
     });
 
     setLoadingSourcesByConversation((current) => {
-      if (!current[activeConversationId]) {
+      if (!current[conversationId]) {
         return current;
       }
       const next = { ...current };
-      delete next[activeConversationId];
+      delete next[conversationId];
       return next;
     });
 
     setSourcesErrorByConversation((current) => {
-      if (!current[activeConversationId]) {
+      if (!current[conversationId]) {
         return current;
       }
       const next = { ...current };
-      delete next[activeConversationId];
+      delete next[conversationId];
       return next;
     });
   }, [activeConversationId, loadMessagesForConversation]);
 
   const { data: configData, isError: isConfigError, error: configError } = useConfigQuery();
   const { data: userProfileData, isError: isProfileError, error: profileError } = useUserProfileQuery();
-  const { data: remoteConversations, isError: isConversationsError, error: conversationsError } = useConversationsQuery();
+  const {
+    data: remoteConversations,
+    isError: isConversationsError,
+    error: conversationsError,
+    isLoading: isConversationsLoading,
+  } = useConversationsQuery();
 
   // Show toast notifications for query errors
   useEffect(() => {
@@ -360,18 +501,43 @@ export default function App() {
   }, [userProfileOptions, selectedProfile]);
 
   useEffect(() => {
-    if (hasInitializedConversations) return;
-    if (remoteConversations) {
-      if (remoteConversations.length > 0) {
-        setConversations(remoteConversations);
-        setActiveConversationId(remoteConversations[0].id);
-        setMessagesByConversation({});
-        setMessagesLoadingByConversation({});
-        setMessagesErrorByConversation({});
+    if (hasInitializedConversations || !remoteConversations) return;
+
+    setConversations((current) => {
+      if (current.length === 0) {
+        return remoteConversations;
       }
-      setHasInitializedConversations(true);
-    }
+
+      const remoteIds = new Set(remoteConversations.map((conv) => conv.id));
+      const localOnly = current.filter((conv) => !remoteIds.has(conv.id));
+      return [...remoteConversations, ...localOnly];
+    });
+
+    setActiveConversationId((current) =>
+      current ?? remoteConversations[0]?.id ?? null
+    );
+
+    setHasInitializedConversations(true);
   }, [remoteConversations, hasInitializedConversations]);
+
+  useEffect(() => {
+    if (conversations.length === 0) {
+      return;
+    }
+
+    const limit = Math.min(conversationsPrefetchLimit, conversations.length);
+    for (let index = 0; index < limit; index += 1) {
+      const conversation = conversations[index];
+      if (!conversation) {
+        continue;
+      }
+      void loadMessagesForConversation(conversation.id);
+    }
+  }, [
+    conversations,
+    conversationsPrefetchLimit,
+    loadMessagesForConversation,
+  ]);
 
   const chatMutation = useChatMutation({
     onStatusUpdate: (status) => {
@@ -415,8 +581,9 @@ export default function App() {
   const updateConversationMutation = useUpdateConversationMutation();
   const deleteConversationMutation = useDeleteConversationMutation();
 
-  const activeMessages =
-    messagesByConversation[activeConversationId] ?? [];
+  const activeMessages = activeConversationId
+    ? messagesByConversation[activeConversationId] ?? []
+    : [];
 
   const loadSourcesForMessage = useCallback(
     async (conversationId: string, messageId: string) => {
@@ -575,6 +742,24 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [isActiveConversationStreaming]);
 
+  const handleConversationListEndReached = useCallback(() => {
+    setConversationsPrefetchLimit((current) => {
+      const total = conversationsRef.current.length;
+      if (total <= current) {
+        return current;
+      }
+      return Math.min(current + 10, total);
+    });
+  }, []);
+
+  const handleLoadMoreHistory = useCallback(() => {
+    if (!activeConversationId) {
+      return;
+    }
+
+    void loadMoreMessagesForConversation(activeConversationId);
+  }, [activeConversationId, loadMoreMessagesForConversation]);
+
   const visibleStreamingMessage =
     activeStream.conversationId === activeConversationId
       ? activeStream.message
@@ -592,8 +777,23 @@ export default function App() {
       activeConversationId &&
       messagesLoadingByConversation[activeConversationId]
     );
+  const hasMoreHistory =
+    !!(
+      activeConversationId &&
+      nextCursorByConversation[activeConversationId] !== null &&
+      nextCursorByConversation[activeConversationId] !== undefined
+    );
+  const isLoadingMoreHistory =
+    !!(
+      activeConversationId &&
+      loadingOlderMessagesByConversation[activeConversationId]
+    );
 
   useEffect(() => {
+    if (suppressAutoScrollRef.current) {
+      return;
+    }
+
     scrollToBottom();
   }, [
     activeMessages,
@@ -602,6 +802,16 @@ export default function App() {
     visibleError,
     scrollToBottom,
   ]);
+
+  useEffect(() => {
+    suppressAutoScrollRef.current = false;
+
+    if (!activeConversationId) {
+      return;
+    }
+
+    scrollToBottom();
+  }, [activeConversationId, scrollToBottom]);
 
   const handleStickToBottomEscapeChange = useCallback(
     (escaped: boolean) => {
@@ -612,7 +822,7 @@ export default function App() {
     [isActiveConversationStreaming]
   );
 
-  const createNewConversation = async () => {
+  const createNewConversation = async (): Promise<string> => {
     // Optimistic update: create temporary conversation immediately
     const tempId = `temp-${Date.now()}`;
     const tempConv: ConversationData = {
@@ -620,10 +830,16 @@ export default function App() {
       title: "New Conversation",
     };
 
+    skipInitialFetchRef.current.add(tempId);
+
     setConversations((prev) => [tempConv, ...prev]);
     setMessagesByConversation((prev) => ({
       ...prev,
       [tempId]: [],
+    }));
+    setNextCursorByConversation((prev) => ({
+      ...prev,
+      [tempId]: null,
     }));
     setActiveConversationId(tempId);
 
@@ -643,7 +859,17 @@ export default function App() {
           [created.id]: tempMessages,
         };
       });
+      setNextCursorByConversation((prev) => {
+        const { [tempId]: tempCursor = null, ...rest } = prev;
+        return {
+          ...rest,
+          [created.id]: tempCursor,
+        };
+      });
       setActiveConversationId(created.id);
+      skipInitialFetchRef.current.delete(tempId);
+      skipInitialFetchRef.current.add(created.id);
+      return created.id;
     } catch (error) {
       console.error("Failed to create conversation via API:", error);
       toast.error("Failed to create conversation", {
@@ -662,7 +888,17 @@ export default function App() {
           [localId]: tempMessages,
         };
       });
+      setNextCursorByConversation((prev) => {
+        const { [tempId]: _removed, ...rest } = prev;
+        return {
+          ...rest,
+          [localId]: null,
+        };
+      });
       setActiveConversationId(localId);
+      skipInitialFetchRef.current.delete(tempId);
+      skipInitialFetchRef.current.add(localId);
+      return localId;
     }
   };
 
@@ -709,18 +945,13 @@ export default function App() {
     );
 
     if (remainingConversations.length === 0) {
-      const newConversation: ConversationData = {
-        id: Date.now().toString(),
-        title: "New Conversation",
-      };
-      setConversations([newConversation]);
-      setActiveConversationId(newConversation.id);
+      setConversations([]);
+      setActiveConversationId((current) =>
+        current === conversationId ? null : current
+      );
       setMessagesByConversation((prev) => {
         const { [conversationId]: _removed, ...rest } = prev;
-        return {
-          ...rest,
-          [newConversation.id]: [],
-        };
+        return rest;
       });
     } else {
       setConversations(remainingConversations);
@@ -754,6 +985,20 @@ export default function App() {
       const { [conversationId]: _removed, ...rest } = current;
       return rest;
     });
+    setNextCursorByConversation((current) => {
+      if (!(conversationId in current)) {
+        return current;
+      }
+      const { [conversationId]: _removed, ...rest } = current;
+      return rest;
+    });
+    setLoadingOlderMessagesByConversation((current) => {
+      if (!current[conversationId]) {
+        return current;
+      }
+      const { [conversationId]: _removed, ...rest } = current;
+      return rest;
+    });
     setMessagesLoadingByConversation((current) => {
       if (!current[conversationId]) {
         return current;
@@ -768,6 +1013,7 @@ export default function App() {
       const { [conversationId]: _removed, ...rest } = current;
       return rest;
     });
+    skipInitialFetchRef.current.delete(conversationId);
 
     try {
       await deleteConversationMutation.mutateAsync({ conversationId });
@@ -789,9 +1035,9 @@ export default function App() {
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || activeStream.isStreaming) return;
 
-    const conversationId = activeConversationId;
+    let conversationId = activeConversationId;
     if (!conversationId) {
-      return;
+      conversationId = await createNewConversation();
     }
 
     const existingMessages = messagesRef.current[conversationId] ?? [];
@@ -1246,6 +1492,7 @@ export default function App() {
         <ChatSidebar
           conversations={conversations}
           activeConversationId={activeConversationId}
+          isLoadingConversations={isConversationsLoading}
           configOptions={configOptions}
           selectedConfigName={selectedConfigName}
           userProfileOptions={userProfileOptions}
@@ -1255,7 +1502,10 @@ export default function App() {
           onCreateConversation={() => {
             void createNewConversation();
           }}
-          onSelectConversation={setActiveConversationId}
+          onLoadMoreConversations={handleConversationListEndReached}
+          onSelectConversation={(conversationId) => {
+            setActiveConversationId(conversationId);
+          }}
           onSelectConfigName={setSelectedConfigName}
           onSelectProfile={setSelectedProfile}
           onDeleteConversation={(conversationId) => {
@@ -1270,27 +1520,38 @@ export default function App() {
             isStreaming={isActiveConversationStreaming}
             streamingMessage={visibleStreamingMessage}
             isLoadingMessages={isLoadingMessages}
+            isLoadingMoreHistory={isLoadingMoreHistory}
+            hasMoreHistory={hasMoreHistory}
             isSourcesVisible={(messageId) =>
-              !!visibleSourcesByConversation[activeConversationId]?.[messageId]
+              !!(
+                activeConversationId &&
+                visibleSourcesByConversation[activeConversationId]?.[messageId]
+              )
             }
             isSourcesLoading={(messageId) =>
-              !!loadingSourcesByConversation[activeConversationId]?.[messageId]
+              !!(
+                activeConversationId &&
+                loadingSourcesByConversation[activeConversationId]?.[messageId]
+              )
             }
             getSourcesError={(messageId) =>
-              sourcesErrorByConversation[activeConversationId]?.[
-                messageId
-              ] ?? null
+              activeConversationId
+                ? sourcesErrorByConversation[activeConversationId]?.[
+                    messageId
+                  ] ?? null
+                : null
             }
             onToggleSources={(message) => {
-          void toggleSourcesVisibility(message);
-        }}
-        messagesEndRef={messagesEndRef}
-        stickToBottomContextRef={stickToBottomContextRef}
-        onStickToBottomEscapeChange={handleStickToBottomEscapeChange}
-        onSelectSource={(source, sources) => {
-          const sourceIndex = sources.findIndex(
-            (item) => item.id === source.id
-          );
+              void toggleSourcesVisibility(message);
+            }}
+            messagesEndRef={messagesEndRef}
+            stickToBottomContextRef={stickToBottomContextRef}
+            onStickToBottomEscapeChange={handleStickToBottomEscapeChange}
+            onLoadMoreHistory={handleLoadMoreHistory}
+            onSelectSource={(source, sources) => {
+              const sourceIndex = sources.findIndex(
+                (item) => item.id === source.id
+              );
               setSelectedSourceContext({
                 sources,
                 index: sourceIndex >= 0 ? sourceIndex : 0,

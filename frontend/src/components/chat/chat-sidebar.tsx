@@ -1,6 +1,8 @@
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -22,7 +24,8 @@ import type { UserProfile } from "@/api/user-profile";
 
 interface ChatSidebarProps {
   conversations: ConversationData[];
-  activeConversationId: string;
+  activeConversationId: string | null;
+  isLoadingConversations: boolean;
   configOptions: ConfigOption[];
   selectedConfigName: string | null;
   userProfileOptions: UserProfile[];
@@ -30,6 +33,7 @@ interface ChatSidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   onCreateConversation: () => void;
+  onLoadMoreConversations: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSelectConfigName: (configName: string) => void;
   onSelectProfile: (profile: UserProfile | null) => void;
@@ -39,6 +43,7 @@ interface ChatSidebarProps {
 export function ChatSidebar({
   conversations,
   activeConversationId,
+  isLoadingConversations,
   configOptions,
   selectedConfigName,
   userProfileOptions,
@@ -46,11 +51,62 @@ export function ChatSidebar({
   isOpen,
   onToggle,
   onCreateConversation,
+  onLoadMoreConversations,
   onSelectConversation,
   onSelectConfigName,
   onSelectProfile,
   onDeleteConversation,
 }: ChatSidebarProps) {
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const scrollArea = scrollAreaRef.current;
+    const sentinel = loadMoreRef.current;
+
+    if (!scrollArea || !sentinel) {
+      return;
+    }
+
+    const viewport = scrollArea.querySelector<HTMLElement>(
+      "[data-radix-scroll-area-viewport]"
+    );
+
+    if (!viewport) {
+      return;
+    }
+
+    let hasRequested = false;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
+          if (!hasRequested) {
+            hasRequested = true;
+            onLoadMoreConversations();
+          }
+        } else {
+          hasRequested = false;
+        }
+      },
+      {
+        root: viewport,
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [onLoadMoreConversations, conversations.length, isOpen]);
+
   // Collapsed sidebar view
   if (!isOpen) {
     return (
@@ -175,40 +231,51 @@ export function ChatSidebar({
 
       <Separator />
 
-      <ScrollArea className="flex-1">
+      <ScrollArea ref={scrollAreaRef} className="flex-1">
         <div className="p-2 space-y-1">
-          {conversations.map((conversation) => {
-            const isActive = conversation.id === activeConversationId;
+          {isLoadingConversations && conversations.length === 0 ? (
+            <div className="flex justify-center py-8">
+              <Spinner className="h-5 w-5" />
+            </div>
+          ) : conversations.length > 0 ? (
+            conversations.map((conversation) => {
+              const isActive = conversation.id === activeConversationId;
 
-            return (
-              <div
-                key={conversation.id}
-                className="flex items-center gap-1 rounded-lg"
-              >
-                <Button
-                  onClick={() => onSelectConversation(conversation.id)}
-                  variant={isActive ? "secondary" : "ghost"}
-                  className="flex-1 justify-start gap-2 text-left"
+              return (
+                <div
+                  key={conversation.id}
+                  className="flex items-center gap-1 rounded-lg w-full min-w-0"
                 >
-                  <MessageSquareIcon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{conversation.title}</span>
-                </Button>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={() => onDeleteConversation(conversation.id)}
-                      size="icon"
-                      variant="ghost"
-                      className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2Icon className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">Delete</TooltipContent>
-                </Tooltip>
-              </div>
-            );
-          })}
+                  <Button
+                    onClick={() => onSelectConversation(conversation.id)}
+                    variant={isActive ? "secondary" : "ghost"}
+                    className="flex-1 justify-start gap-2 text-left min-w-0 overflow-hidden"
+                  >
+                    <MessageSquareIcon className="h-4 w-4 shrink-0" />
+                    <span className="block truncate">{conversation.title}</span>
+                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => onDeleteConversation(conversation.id)}
+                        size="icon"
+                        variant="ghost"
+                        className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2Icon className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Delete</TooltipContent>
+                  </Tooltip>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-xs text-muted-foreground text-center py-4">
+              No conversations yet
+            </p>
+          )}
+          <div ref={loadMoreRef} aria-hidden className="h-1 w-full" />
         </div>
       </ScrollArea>
     </div>
