@@ -7,7 +7,7 @@ export interface Source {
 
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "tool";
   content: string;
   sources?: Source[];
   feedback?: "up" | "down" | null;
@@ -17,8 +17,13 @@ export interface ChatMessage {
 
 export interface ConversationData {
   id: string;
-  title: string;
-  messages: ChatMessage[];
+  name: string;
+}
+
+export interface ConversationMessage {
+  id: string;
+  role: "user" | "assistant" | "tool";
+  content: string;
 }
 
 export interface PendingFeedback {

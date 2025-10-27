@@ -76,11 +76,16 @@ export function ChatMessages({
   stickToBottomContextRef,
   onStickToBottomEscapeChange,
 }: ChatMessagesProps) {
+  const visibleMessages = messages.filter(
+    (message): message is ChatMessage & { role: "user" | "assistant" } => 
+      message.role !== "tool"
+  );
+  
   return (
     <Conversation className="flex-1" contextRef={stickToBottomContextRef}>
       <StickStateObserver onEscapeChange={onStickToBottomEscapeChange} />
       <ConversationContent className="max-w-3xl mx-auto w-full">
-        {messages.map((message) => {
+        {visibleMessages.map((message) => {
           const isAssistant = message.role === "assistant";
           const isGeneratingForMessage =
             isGeneratingQuestions &&
@@ -94,7 +99,7 @@ export function ChatMessages({
           const hasSources = (sourcesList?.length ?? 0) > 0;
 
           return (
-            <Message key={message.id} from={message.role}>
+            <Message key={message.id} from={message.role as "user" | "assistant"}>
               <MessageContent
                 variant="flat"
                 className={cn(

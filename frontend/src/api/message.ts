@@ -5,16 +5,10 @@ type MessageSourcesResponse = {
   sources?: Source[];
 };
 
-export const fetchMessageSources = async ({
-  conversationId,
-  messageId,
-}: {
-  conversationId: string;
-  messageId: string;
-}): Promise<Source[]> => {
-  const data = await apiFetch<MessageSourcesResponse>(
-    `/conversations/${conversationId}/messages/${messageId}/sources`
-  );
+export const fetchMessageSources = async (
+  messageId: string,
+): Promise<Source[]> => {
+  const data = await apiFetch<MessageSourcesResponse>(`/sources/${messageId}`);
 
   if (!Array.isArray(data.sources)) {
     return [];

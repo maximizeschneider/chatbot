@@ -22,7 +22,7 @@ import type { UserProfile } from "@/api/user-profile";
 
 interface ChatSidebarProps {
   conversations: ConversationData[];
-  activeConversationId: string;
+  activeConversationId: string | null;
   configOptions: ConfigOption[];
   selectedConfigName: string | null;
   userProfileOptions: UserProfile[];
@@ -121,7 +121,7 @@ export function ChatSidebar({
               Configuration
             </p>
             <Select
-              value={selectedConfigName ?? undefined}
+              value={selectedConfigName || ""}
               onValueChange={(value) => {
                 onSelectConfigName(value);
               }}
@@ -144,7 +144,7 @@ export function ChatSidebar({
               User Profile
             </p>
             <Select
-              value={selectedProfile?.name ?? undefined}
+              value={selectedProfile?.name || ""}
               onValueChange={(value) => {
                 onSelectProfile(userProfileOptions.find((p) => p.name === value) ?? null);
               }}
@@ -178,7 +178,7 @@ export function ChatSidebar({
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-1">
           {conversations.map((conversation) => {
-            const isActive = conversation.id === activeConversationId;
+            const isActive = activeConversationId !== null && conversation.id === activeConversationId;
 
             return (
               <div
@@ -191,7 +191,11 @@ export function ChatSidebar({
                   className="flex-1 justify-start gap-2 text-left"
                 >
                   <MessageSquareIcon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{conversation.title}</span>
+                  <span className="truncate">
+                    {conversation.name.length > 10
+                      ? `${conversation.name.slice(0, 10)}...`
+                      : conversation.name}
+                  </span>
                 </Button>
                 <Tooltip>
                   <TooltipTrigger asChild>

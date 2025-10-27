@@ -7,7 +7,7 @@ type ConversationsResponse = {
 };
 
 type CreateConversationRequest = {
-  title?: string;
+  name?: string;
 };
 
 type CreateConversationResponse = {

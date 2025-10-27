@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { Router } from 'express';
 import { z } from 'zod';
 import { stepCountIs, streamText, tool } from 'ai';
+import { HARDCODED_SOURCES } from '@/data/mock';
 import { openai } from '@/lib/openai';
 
 const someTool = tool({
@@ -24,49 +25,6 @@ const ChatBodySchema = z.object({
   profile: z.any().optional(),
   upn: z.string().optional(),
 });
-
-const HARDCODED_SOURCES = [
-  {
-    id: 'source-1',
-    name: 'Product Documentation',
-    text: '# Heading 1\nFirst, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.Our platform offers comprehensive analytics and real-time monitoring capabilities. Users can track key metrics, set up custom alerts, and generate detailed reports. The analytics dashboard provides visualization tools including charts, graphs, and customizable widgets.',
-    relevantParts: [
-      'Our platform offers comprehensive analytics and real-time monitoring capabilities.',
-      'Users can track key metrics, set up custom alerts, and generate detailed reports.',
-      'The analytics dashboard provides visualization tools including charts, graphs, and customizable widgets.'
-    ]
-  },
-  {
-    id: 'source-2', 
-    name: 'Knowledge Base Article',
-    text: 'First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.',
-    relevantParts: [
-      'First, obtain your API key from the dashboard.',
-      'Make authenticated requests using the bearer token format.',
-      'All API endpoints require authentication via the Authorization header.'
-    ]
-  },
-  {
-    id: 'source-3',
-    name: 'Best Practices Guide',
-    text: 'We recommend implementing caching strategies, batching requests when possible. Using webhooks for real-time updates rather than polling. Batching multiple operations into a single request improves efficiency.',
-    relevantParts: [
-      'We recommend implementing caching strategies, batching requests when possible.',
-      'Using webhooks for real-time updates rather than polling.',
-      'Batching multiple operations into a single request improves efficiency.'
-    ]
-  },
-  {
-    id: 'source-4',
-    name: 'Best Practices Guide', 
-    text: 'We recommend implementing caching strategies, batching requests when possible. Using webhooks for real-time updates rather than polling. Batching multiple operations into a single request improves efficiency.',
-    relevantParts: [
-      'We recommend implementing caching strategies, batching requests when possible.',
-      'Using webhooks for real-time updates rather than polling.',
-      'Batching multiple operations into a single request improves efficiency.'
-    ]
-  }
-];
 
 const handleStreamingChat = async (req: Request, res: Response) => {
   const parsed = ChatBodySchema.safeParse(req.body);
