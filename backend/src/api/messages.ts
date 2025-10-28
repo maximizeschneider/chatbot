@@ -1,36 +1,47 @@
 import { Router } from "express";
-import {
-  conversations,
-  getConversationMessages,
-  type StoredMessage,
-} from "@/data/mock";
+import { findMessage, listMessages } from "@/data/mock";
 
-const router = Router();
+export const messagesRouter = Router({ mergeParams: true });
 
-router.get("/:conversationId", (req, res) => {
-  const { conversationId } = req.params;
+messagesRouter.get("/", (req, res) => {
+  const { tenantId, userId, conversationId } = req.params as {
+    tenantId?: string;
+    userId?: string;
+    conversationId?: string;
+  };
 
-  if (!conversationId) {
-    return res.status(400).json({ error: "conversationId is required" });
+  if (!tenantId || !userId || !conversationId) {
+    return res.status(400).json({
+      error: "tenantId, userId, and conversationId are required",
+    });
   }
 
-  const conversationExists = conversations.some(
-    (conversation) => conversation.id === conversationId,
-  );
-
-  if (!conversationExists) {
+  const messages = listMessages(tenantId, userId, conversationId);
+  if (!messages) {
     return res.status(404).json({ error: "Conversation not found" });
   }
 
-  const messages = getConversationMessages(conversationId).map(
-    ({ id, role, content }: StoredMessage) => ({
-      id,
-      role,
-      content,
-    }),
-  );
-
-  return res.json({ messages });
+  return res.json(messages);
 });
 
-export const messagesRouter = router;
+messagesRouter.get("/:messageId", (req, res) => {
+  const { tenantId, userId, conversationId, messageId } = req.params as {
+    tenantId?: string;
+    userId?: string;
+    conversationId?: string;
+    messageId?: string;
+  };
+
+  if (!tenantId || !userId || !conversationId || !messageId) {
+    return res.status(400).json({
+      error: "tenantId, userId, conversationId, and messageId are required",
+    });
+  }
+
+  const message = findMessage(tenantId, userId, conversationId, messageId);
+  if (!message) {
+    return res.status(404).json({ error: "Message not found" });
+  }
+
+  return res.json(message);
+});

@@ -1,71 +1,111 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ConversationData } from "@/types/chat";
-import { apiFetch, buildApiUrl } from "./client";
+import { fetchData } from "./client";
 
-type ConversationsResponse = {
-  conversations: ConversationData[];
+type ApiConversation = {
+  _id: string;
+  title: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
-type CreateConversationRequest = {
-  name?: string;
-};
+const mapConversation = (conversation: ApiConversation): ConversationData => ({
+  id: conversation._id,
+  name: conversation.title ?? "Untitled conversation",
+  createdAt: conversation.createdAt,
+  updatedAt: conversation.updatedAt,
+});
 
-type CreateConversationResponse = {
-  conversation: ConversationData;
-};
-
-export const useConversationsQuery = () =>
+export const useConversationsQuery = (
+  tenantId: string | null,
+  userId: string | null,
+) =>
   useQuery<ConversationData[]>({
-    queryKey: ["conversations"],
+    queryKey: ["conversations", tenantId, userId],
+    enabled: Boolean(tenantId && userId),
     queryFn: async () => {
-      const data = await apiFetch<ConversationsResponse>("/conversations");
-      return data.conversations ?? [];
+      if (!tenantId || !userId) {
+        return [];
+      }
+
+      const data = await fetchData<ApiConversation[]>(
+        `/api/v1/tenant/${tenantId}/user/${userId}/conversation`,
+        {},
+        "load conversations",
+      );
+
+      return Array.isArray(data) ? data.map(mapConversation) : [];
     },
     staleTime: 5 * 60 * 1000,
+    initialData: [],
   });
 
-export const useCreateConversationMutation = () => {
+type CreateConversationRequest = {
+  title?: string;
+};
+
+export const useCreateConversationMutation = (
+  tenantId: string | null,
+  userId: string | null,
+) => {
   const queryClient = useQueryClient();
 
   return useMutation<ConversationData, Error, CreateConversationRequest>({
-    mutationKey: ["create-conversation"],
-    mutationFn: async (payload) => {
-      const data = await apiFetch<CreateConversationResponse>("/conversations", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      return data.conversation;
+    mutationKey: ["create-conversation", tenantId, userId],
+    mutationFn: async ({ title }) => {
+      if (!tenantId || !userId) {
+        throw new Error("Cannot create a conversation without a tenant and user.");
+      }
+
+      const conversation = await fetchData<ApiConversation>(
+        `/api/v1/tenant/${tenantId}/user/${userId}/conversation`,
+        {
+          method: "POST",
+          body: JSON.stringify({ title }),
+        },
+        "create conversation",
+      );
+
+      return mapConversation(conversation);
     },
     onSuccess: (createdConversation) => {
       queryClient.setQueryData<ConversationData[] | undefined>(
-        ["conversations"],
-        (current) => (current ? [createdConversation, ...current] : [createdConversation])
+        ["conversations", tenantId, userId],
+        (current) =>
+          current ? [createdConversation, ...current] : [createdConversation],
       );
     },
   });
 };
 
-export const useDeleteConversationMutation = () => {
+export const useDeleteConversationMutation = (
+  tenantId: string | null,
+  userId: string | null,
+) => {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, { conversationId: string }>({
-    mutationKey: ["delete-conversation"],
+    mutationKey: ["delete-conversation", tenantId, userId],
     mutationFn: async ({ conversationId }) => {
-      const response = await fetch(buildApiUrl(`/conversations/${conversationId}`), {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        throw new Error(
-          `Failed to delete conversation with status ${response.status}`
-        );
+      if (!tenantId || !userId) {
+        throw new Error("Cannot delete a conversation without a tenant and user.");
       }
+
+      await fetchData<void>(
+        `/api/v1/tenant/${tenantId}/user/${userId}/conversation/${conversationId}`,
+        {
+          method: "DELETE",
+        },
+        "delete conversation",
+      );
     },
     onSuccess: (_result, variables) => {
       queryClient.setQueryData<ConversationData[] | undefined>(
-        ["conversations"],
+        ["conversations", tenantId, userId],
         (current) =>
-          current?.filter((conversation) => conversation.id !== variables.conversationId) ??
-          current
+          current?.filter(
+            (conversation) => conversation.id !== variables.conversationId,
+          ) ?? current,
       );
     },
   });

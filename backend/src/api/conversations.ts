@@ -1,23 +1,45 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
-  conversations,
-  ensureConversationMessages,
-  messagesByConversation,
-  type StoredConversation,
+  createConversation,
+  deleteConversation,
+  findConversation,
+  listConversations,
+  updateConversationTitle,
 } from "@/data/mock";
 
-const router = Router();
-
 const CreateConversationSchema = z.object({
-  name: z.string().optional(),
+  title: z.string().optional(),
 });
 
-router.get("/", (_req, res) => {
-  res.json({ conversations });
+const UpdateConversationSchema = z.object({
+  title: z.string().min(1),
 });
 
-router.post("/", (req, res) => {
+export const conversationsRouter = Router({ mergeParams: true });
+
+conversationsRouter.get("/", (req, res) => {
+  const { tenantId, userId } = req.params as {
+    tenantId?: string;
+    userId?: string;
+  };
+  if (!tenantId || !userId) {
+    return res.status(400).json({ error: "tenantId and userId are required" });
+  }
+
+  const conversations = listConversations(tenantId, userId);
+  return res.json(conversations);
+});
+
+conversationsRouter.post("/", (req, res) => {
+  const { tenantId, userId } = req.params as {
+    tenantId?: string;
+    userId?: string;
+  };
+  if (!tenantId || !userId) {
+    return res.status(400).json({ error: "tenantId and userId are required" });
+  }
+
   const parsed = CreateConversationSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -26,33 +48,86 @@ router.post("/", (req, res) => {
     });
   }
 
-  const trimmedName = parsed.data.name?.trim();
-  const newConversation: StoredConversation = {
-    id: `conv-${Date.now()}`,
-    name: trimmedName && trimmedName.length > 0 ? trimmedName : "New Conversation",
-  };
-
-  conversations.unshift(newConversation);
-  ensureConversationMessages(newConversation.id);
-
-  res.status(201).json({ conversation: newConversation });
+  const conversation = createConversation(
+    tenantId,
+    userId,
+    parsed.data.title ?? undefined,
+  );
+  return res.status(201).json(conversation);
 });
 
-router.delete("/:conversationId", (req, res) => {
-  const { conversationId } = req.params;
-  if (!conversationId) {
-    return res.status(400).json({ error: "conversationId is required" });
+conversationsRouter.get("/:conversationId", (req, res) => {
+  const { tenantId, userId, conversationId } = req.params as {
+    tenantId?: string;
+    userId?: string;
+    conversationId?: string;
+  };
+  if (!tenantId || !userId || !conversationId) {
+    return res.status(400).json({
+      error: "tenantId, userId, and conversationId are required",
+    });
   }
 
-  const index = conversations.findIndex((conv) => conv.id === conversationId);
-  if (index === -1) {
+  const conversation = findConversation(tenantId, userId, conversationId);
+  if (!conversation) {
     return res.status(404).json({ error: "Conversation not found" });
   }
 
-  conversations.splice(index, 1);
-  delete messagesByConversation[conversationId];
-
-  res.status(204).send();
+  return res.json(conversation);
 });
 
-export const conversationsRouter = router;
+conversationsRouter.put("/:conversationId", (req, res) => {
+  const { tenantId, userId, conversationId } = req.params as {
+    tenantId?: string;
+    userId?: string;
+    conversationId?: string;
+  };
+
+  if (!tenantId || !userId || !conversationId) {
+    return res.status(400).json({
+      error: "tenantId, userId, and conversationId are required",
+    });
+  }
+
+  const parsed = UpdateConversationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Invalid request body",
+      details: parsed.error.flatten(),
+    });
+  }
+
+  const conversation = updateConversationTitle(
+    tenantId,
+    userId,
+    conversationId,
+    parsed.data.title,
+  );
+
+  if (!conversation) {
+    return res.status(404).json({ error: "Conversation not found" });
+  }
+
+  return res.json(conversation);
+});
+
+conversationsRouter.delete("/:conversationId", (req, res) => {
+  const { tenantId, userId, conversationId } = req.params as {
+    tenantId?: string;
+    userId?: string;
+    conversationId?: string;
+  };
+
+  if (!tenantId || !userId || !conversationId) {
+    return res.status(400).json({
+      error: "tenantId, userId, and conversationId are required",
+    });
+  }
+
+  const deleted = deleteConversation(tenantId, userId, conversationId);
+  if (!deleted) {
+    return res.status(404).json({ error: "Conversation not found" });
+  }
+
+  return res.status(204).send();
+});

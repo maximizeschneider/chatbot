@@ -1,17 +1,39 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "./client";
+import { fetchData } from "./client";
+
+export interface ConfigBlock {
+  id: string;
+  title: string;
+}
 
 export interface ConfigOption {
   name: string;
+  templateId: string;
   publishedToMain: boolean;
-  someShit: string;
+  blocks: ConfigBlock[];
 }
 
-export type ConfigResponse = ConfigOption[];
+export const useConfigQuery = (tenantId: string | null) =>
+  useQuery<ConfigOption[]>({
+    queryKey: ["config", tenantId],
+    enabled: Boolean(tenantId),
+    queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
 
-export const useConfigQuery = () =>
-  useQuery<ConfigResponse>({
-    queryKey: ["config"],
-    queryFn: () => apiFetch<ConfigResponse>("/config"),
+      const data = await fetchData<ConfigOption[]>(
+        `/api/v1/tenant/${tenantId}/configuration`,
+        {},
+        "load configurations",
+      );
+
+      if (!Array.isArray(data)) {
+        return [];
+      }
+
+      return data;
+    },
     staleTime: 5 * 60 * 1000,
+    initialData: [],
   });

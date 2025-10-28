@@ -20,6 +20,7 @@ import {
 } from "@/api/conversation";
 import { useConfigQuery, type ConfigOption } from "@/api/config";
 import { useUserProfileQuery, type UserProfile } from "@/api/user-profile";
+import { fetchData } from "@/api/client";
 import type {
   ChatMessage,
   ConversationData,
@@ -57,6 +58,26 @@ type NegativeFeedbackValue =
   (typeof NEGATIVE_FEEDBACK_OPTIONS)[number]["value"];
 
 const OTHER_FEEDBACK_VALUE: NegativeFeedbackValue = "other";
+
+type TenantInfo = {
+  id: string;
+  name: string;
+  logoUrl?: string;
+};
+
+type TechnicalUserState = {
+  canChat: boolean;
+  canDeleteConversation: boolean;
+  canProvideFeedback: boolean;
+};
+
+const FALLBACK_TENANT_ID = "tenant-1";
+const FALLBACK_USER_ID = "user-123";
+const DEFAULT_PERMISSIONS: TechnicalUserState = {
+  canChat: true,
+  canDeleteConversation: true,
+  canProvideFeedback: true,
+};
 
 const normalizeSources = (sources?: Source[] | null): Source[] | undefined => {
   if (!Array.isArray(sources)) {
@@ -144,7 +165,35 @@ const isNegativeFeedbackValue = (
   typeof value === "string" &&
   NEGATIVE_FEEDBACK_OPTIONS.some((option) => option.value === value);
 
+const toChatMessage = (message: ConversationMessage): ChatMessage => {
+  const normalizedSources = normalizeSources(message.sources);
+  const feedbackDetails = message.feedback ?? null;
+
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    createdAt: message.createdAt,
+    sources: normalizedSources,
+    data: message.data as Record<string, unknown> | undefined,
+    feedback:
+      feedbackDetails !== null
+        ? feedbackDetails.feedbackType === 1
+          ? "up"
+          : "down"
+        : null,
+    feedbackReason: feedbackDetails?.reason ?? undefined,
+    feedbackDetails,
+    imageSelection: message.imageSelection,
+  };
+};
+
 export default function App() {
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [technicalUser, setTechnicalUser] = useState<TechnicalUserState | null>(null);
+  const [activeUserEmail, setActiveUserEmail] = useState<string | null>(null);
+  const [isSessionReady, setIsSessionReady] = useState(false);
   const [conversations, setConversations] = useState<ConversationData[]>([]);
   const [messagesByConversation, setMessagesByConversation] = useState<
     Record<string, ChatMessage[]>
@@ -184,34 +233,106 @@ export default function App() {
   visibleSourcesRef.current = visibleSourcesByConversation;
   messagesByConversationRef.current = messagesByConversation;
 
-  const { data: configData, isError: isConfigError, error: configError } = useConfigQuery();
-  const { data: userProfileData, isError: isProfileError, error: profileError } = useUserProfileQuery();
-  const { data: remoteConversations, isError: isConversationsError, error: conversationsError } = useConversationsQuery();
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrapSession = async () => {
+      try {
+        await fetchData("/api/v1/status", {}, "check service status");
+        const tenants = await fetchData<TenantInfo[]>(
+          "/api/v1/tenant?includeLogo=false",
+          {},
+          "load tenants",
+        );
+        const activeUser = await fetchData<{
+          id: string;
+          email?: string;
+        }>("/api/v1/activeUser", {}, "load active user");
+
+        const resolvedTenantId =
+          (Array.isArray(tenants) && tenants[0]?.id) || FALLBACK_TENANT_ID;
+        const resolvedUserId = activeUser?.id ?? FALLBACK_USER_ID;
+
+        const permissions = await fetchData<TechnicalUserState>(
+          `/api/v1/tenant/${resolvedTenantId}/current-technical-user`,
+          {},
+          "load technical user permissions",
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setTenantId(resolvedTenantId);
+        setUserId(resolvedUserId);
+        setActiveUserEmail(activeUser?.email ?? null);
+        setTechnicalUser(permissions ?? DEFAULT_PERMISSIONS);
+        setIsSessionReady(true);
+      } catch (error) {
+        console.error("Failed to bootstrap session", error);
+        if (cancelled) {
+          return;
+        }
+
+        setTenantId((current) => current ?? FALLBACK_TENANT_ID);
+        setUserId((current) => current ?? FALLBACK_USER_ID);
+        setActiveUserEmail((current) => current);
+        setTechnicalUser((current) => current ?? DEFAULT_PERMISSIONS);
+        setIsSessionReady(true);
+        const message = error instanceof Error ? error.message : "Unknown error";
+        toast.error("Using fallback session data", {
+          description: message,
+        });
+      }
+    };
+
+    void bootstrapSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const {
+    data: configData,
+    isError: isConfigError,
+    error: configError,
+  } = useConfigQuery(tenantId);
+  const {
+    data: userProfileData,
+    isError: isProfileError,
+    error: profileError,
+  } = useUserProfileQuery(tenantId, userId);
+  const {
+    data: remoteConversations,
+    isError: isConversationsError,
+    error: conversationsError,
+  } = useConversationsQuery(tenantId, userId);
 
   // Show toast notifications for query errors
   useEffect(() => {
-    if (isConfigError) {
+    if (isSessionReady && isConfigError) {
       toast.error("Failed to load configs", {
         description: configError instanceof Error ? configError.message : "Could not fetch configuration options",
       });
     }
-  }, [isConfigError, configError]);
+  }, [isSessionReady, isConfigError, configError]);
 
   useEffect(() => {
-    if (isProfileError) {
+    if (isSessionReady && isProfileError) {
       toast.error("Failed to load user profiles", {
         description: profileError instanceof Error ? profileError.message : "Could not fetch user profile options",
       });
     }
-  }, [isProfileError, profileError]);
+  }, [isSessionReady, isProfileError, profileError]);
 
   useEffect(() => {
-    if (isConversationsError) {
+    if (isSessionReady && isConversationsError) {
       toast.error("Failed to load conversations", {
         description: conversationsError instanceof Error ? conversationsError.message : "Could not fetch your conversation history",
       });
     }
-  }, [isConversationsError, conversationsError]);
+  }, [isSessionReady, isConversationsError, conversationsError]);
 
   // Process configs: put publishedToMain first
   const configOptions: ConfigOption[] = configData
@@ -222,11 +343,31 @@ export default function App() {
       })()
     : [];
 
-  // get upn from context session, hardcoded for now
-  const upn = "max1.schneider@genbw.com"
-  const userProfileOptions: UserProfile[] = userProfileData
-    ? [{ name: upn, _id: "upn" }, ...userProfileData]
-    : [];
+  const defaultProfileOption =
+    activeUserEmail && activeUserEmail.trim().length > 0
+      ? {
+          _id: "upn",
+          name: activeUserEmail,
+          userId: activeUserEmail,
+          description: activeUserEmail,
+          data: {},
+        }
+      : null;
+
+  const userProfileOptions: UserProfile[] = (() => {
+    const profiles = userProfileData ?? [];
+    if (!defaultProfileOption) {
+      return profiles;
+    }
+
+    const alreadyIncludesDefault = profiles.some(
+      (profile) => profile._id === defaultProfileOption._id,
+    );
+
+    return alreadyIncludesDefault
+      ? profiles
+      : [defaultProfileOption, ...profiles];
+  })();
 
   const resolvedConfigName =
     selectedConfigName &&
@@ -236,13 +377,13 @@ export default function App() {
 
   const resolvedProfile =
     selectedProfile &&
-    userProfileOptions.some((candidate) => candidate.name === selectedProfile.name)
+    userProfileOptions.some((candidate) => candidate._id === selectedProfile._id)
       ? selectedProfile
       : userProfileOptions[0] ?? null;
 
   const ensureMessagesLoaded = useCallback(
     async (conversationId: string) => {
-      if (!conversationId) {
+      if (!conversationId || !tenantId || !userId) {
         return;
       }
 
@@ -255,15 +396,13 @@ export default function App() {
           ...current,
           [conversationId]: true,
         }));
-        const apiMessages = await fetchConversationMessages(conversationId);
-        const normalized: ChatMessage[] = apiMessages.map(
-          (message: ConversationMessage) => ({
-            id: message.id,
-            role: message.role,
-            content: message.content,
-            feedback: null,
-          })
+
+        const apiMessages = await fetchConversationMessages(
+          tenantId,
+          userId,
+          conversationId,
         );
+        const normalized: ChatMessage[] = apiMessages.map(toChatMessage);
 
         autoScrollOnMessagesChangeRef.current = true;
         setMessagesByConversation((current) => ({
@@ -285,7 +424,7 @@ export default function App() {
         });
       }
     },
-    [setMessagesByConversation]
+    [tenantId, userId, setMessagesByConversation]
   );
 
   const getQuestionsCacheKey = useCallback(
@@ -417,16 +556,26 @@ export default function App() {
       console.error("Chat error:", error);
     },
   });
-  const feedbackMutation = useFeedbackMutation();
-  const questionMutation = useQuestionGenerationMutation();
-  const createConversationMutation = useCreateConversationMutation();
-  const deleteConversationMutation = useDeleteConversationMutation();
+  const feedbackMutation = useFeedbackMutation(tenantId, userId);
+  const questionMutation = useQuestionGenerationMutation(tenantId, userId);
+  const createConversationMutation = useCreateConversationMutation(
+    tenantId,
+    userId,
+  );
+  const deleteConversationMutation = useDeleteConversationMutation(
+    tenantId,
+    userId,
+  );
 
   const activeMessages = activeConversationId
     ? messagesByConversation[activeConversationId] ?? []
     : [];
   const loadSourcesForMessage = useCallback(
     async (conversationId: string, messageId: string) => {
+      if (!tenantId || !userId) {
+        return;
+      }
+
       const messages = messagesByConversationRef.current[conversationId];
       const message = messages?.find((msg) => msg.id === messageId);
 
@@ -490,7 +639,12 @@ export default function App() {
           return next;
         });
 
-        const fetchedSources = await fetchMessageSources(messageId);
+        const fetchedSources = await fetchMessageSources(
+          tenantId,
+          userId,
+          conversationId,
+          messageId,
+        );
         const normalized = normalizeSources(fetchedSources) ?? [];
         if (!visibleSourcesRef.current[conversationId]?.[messageId]) {
           return;
@@ -540,6 +694,8 @@ export default function App() {
       }
     },
     [
+      tenantId,
+      userId,
       setLoadingSourcesByConversation,
       setSourcesErrorByConversation,
       setMessagesByConversation,
@@ -634,7 +790,7 @@ export default function App() {
 
     try {
       const created = await createConversationMutation.mutateAsync({
-        name: "New Conversation",
+        title: "New Conversation",
       });
       
       // Replace temporary conversation with the real one
@@ -692,6 +848,12 @@ export default function App() {
     // Store the conversation and current state for potential rollback
     const conversationToDelete = conversations.find((conv) => conv.id === conversationId);
     if (!conversationToDelete) return;
+    if (technicalUser && !technicalUser.canDeleteConversation) {
+      toast.error("Delete unavailable", {
+        description: "Your account cannot delete conversations.",
+      });
+      return;
+    }
 
     const previousActiveId = activeConversationId;
     const previousConversations = conversations;
@@ -736,20 +898,30 @@ export default function App() {
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || activeStream.isStreaming) return;
     if (!activeConversationId) return;
+    if (!tenantId || !userId) {
+      toast.error("Session not ready", {
+        description: "Unable to send a message until the session has loaded.",
+      });
+      return;
+    }
+    if (technicalUser && !technicalUser.canChat) {
+      toast.error("Chat unavailable", {
+        description: "Your account is not permitted to start a chat.",
+      });
+      return;
+    }
 
     let conversationId = activeConversationId;
-    
-    // If this is a temp conversation (starts with "temp-"), create a real one
+
     if (conversationId.startsWith("temp-")) {
       try {
         const tempConversationId = conversationId;
         const created = await createConversationMutation.mutateAsync({
-          name: "New Conversation",
+          title: "New Conversation",
         });
-        
-        // Replace the temp conversation with the real one
+
         setConversations((prev) =>
-          prev.map((conv) => (conv.id === tempConversationId ? created : conv))
+          prev.map((conv) => (conv.id === tempConversationId ? created : conv)),
         );
         setMessagesByConversation((current) => {
           const { [tempConversationId]: tempMessages = [] } = current;
@@ -759,19 +931,21 @@ export default function App() {
           return next;
         });
         conversationId = created.id;
-        // Only switch focus if the temp conversation is still active
         setActiveConversationId((currentActive) =>
-          currentActive === tempConversationId ? created.id : currentActive
+          currentActive === tempConversationId ? created.id : currentActive,
         );
       } catch (error) {
         console.error("Failed to create conversation:", error);
         toast.error("Failed to create conversation", {
-          description: error instanceof Error ? error.message : "Could not create a new conversation",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not create a new conversation",
         });
         return;
       }
     }
-    
+
     setVisibleSourcesByConversation((current) => {
       if (!current[conversationId]) {
         const next = {
@@ -812,13 +986,19 @@ export default function App() {
       statusUpdate: "",
       error: null,
     });
+
+    const userMessageId = `user-${Date.now()}`;
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: userMessageId,
       role: "user",
       content: text,
+      createdAt: new Date().toISOString(),
+      feedback: null,
+      feedbackDetails: null,
     };
 
-    const wasEmpty = (messagesByConversationRef.current[conversationId]?.length ?? 0) === 0;
+    const wasEmpty =
+      (messagesByConversationRef.current[conversationId]?.length ?? 0) === 0;
 
     autoScrollOnMessagesChangeRef.current = true;
     setMessagesByConversation((current) => {
@@ -827,7 +1007,8 @@ export default function App() {
         if (!msg.suggestedQuestions || msg.suggestedQuestions.length === 0) {
           return msg;
         }
-        const { suggestedQuestions: _removed, ...messageWithoutSuggestions } = msg;
+        const { suggestedQuestions: _removed, ...messageWithoutSuggestions } =
+          msg;
         return messageWithoutSuggestions;
       });
       return {
@@ -842,31 +1023,38 @@ export default function App() {
 
     try {
       const chatRequest: ChatRequest = {
-        prompt: text,
+        tenantId,
+        userId,
         conversationId,
+        message: {
+          id: userMessageId,
+          role: "user",
+          content: text,
+        },
+        stream: true,
       };
+
       if (resolvedConfigName) {
         chatRequest.configName = resolvedConfigName;
       }
-      if (resolvedProfile) {
-        if (resolvedProfile._id === "upn") {
-          chatRequest.upn = resolvedProfile.name;
-        } else {
-          chatRequest.profile = resolvedProfile;
-        }
+
+      if (resolvedProfile && resolvedProfile._id !== "upn") {
+        chatRequest.devParams = {
+          testDataUserId: resolvedProfile.userId,
+        };
       }
 
       const finalPayload = await chatMutation.mutateAsync(chatRequest);
 
-      const assistantMessage: ChatMessage = {
-        id: `${Date.now()}-assistant`,
-        role: "assistant",
-        content: finalPayload.message,
-        feedback: null,
-      };
-      const normalizedSources = normalizeSources(finalPayload.sources);
-      if (normalizedSources !== undefined) {
-        assistantMessage.sources = normalizedSources;
+      const assistantMessage = toChatMessage(finalPayload.message);
+      if (
+        (!assistantMessage.sources || assistantMessage.sources.length === 0) &&
+        finalPayload.documents
+      ) {
+        const normalizedDocuments = normalizeSources(finalPayload.documents);
+        if (normalizedDocuments) {
+          assistantMessage.sources = normalizedDocuments;
+        }
       }
 
       autoScrollOnMessagesChangeRef.current = true;
@@ -912,8 +1100,7 @@ export default function App() {
         error instanceof Error
           ? error.message
           : "Something went wrong while sending your message.";
-      
-      // Show toast notification for chat error
+
       toast.error("Chat error", {
         description: errorMessage,
       });
@@ -965,6 +1152,18 @@ export default function App() {
     if (!activeConversationId) {
       return;
     }
+    if (!tenantId || !userId) {
+      toast.error("Session not ready", {
+        description: "Unable to submit feedback until the session has loaded.",
+      });
+      return;
+    }
+    if (feedback && technicalUser && !technicalUser.canProvideFeedback) {
+      toast.error("Feedback disabled", {
+        description: "Your account is not permitted to submit feedback.",
+      });
+      return;
+    }
 
     setMessagesByConversation((current) => ({
       ...current,
@@ -975,6 +1174,15 @@ export default function App() {
               feedback,
               feedbackReason:
                 feedback === "down" ? trimmedReason || undefined : undefined,
+              feedbackDetails:
+                feedback === null
+                  ? null
+                  : {
+                      feedbackType: feedback === "up" ? 1 : 0,
+                      reason: feedback === "down" ? trimmedReason ?? null : null,
+                      text: feedback === "down" ? trimmedReason ?? null : null,
+                      acknowledged: feedback === "up",
+                    },
             }
           : msg
       ),
@@ -1059,7 +1267,13 @@ export default function App() {
   };
 
   const handleGenerateQuestions = async (message: ChatMessage) => {
-    if (message.role !== "assistant" || questionMutation.isPending || !activeConversationId) {
+    if (
+      message.role !== "assistant" ||
+      questionMutation.isPending ||
+      !activeConversationId ||
+      !tenantId ||
+      !userId
+    ) {
       return;
     }
 
@@ -1086,7 +1300,10 @@ export default function App() {
       const result = await questionMutation.mutateAsync({
         messageId: message.id,
         conversationId: activeConversationId,
-        text: message.content,
+        configName:
+          resolvedConfigName && resolvedConfigName !== "default"
+            ? resolvedConfigName
+            : undefined,
       });
 
       if (result.questions?.length) {

@@ -1,21 +1,15 @@
 import { Router } from "express";
+import { CONFIGURATIONS_BY_TENANT } from "@/data/mock";
 
-interface ConfigOption {
-  name: string;
-  publishedToMain: boolean;
-  someShit: string;
-}
+export const configRouter = Router({ mergeParams: true });
 
-const router = Router();
+configRouter.get("/", (req, res) => {
+  const { tenantId } = req.params as { tenantId?: string };
 
-const DUMMY_CONFIGS: ConfigOption[] = [
-  { name: "Production Config", publishedToMain: false, someShit: "some shit"  },
-  { name: "Development Config", publishedToMain: true, someShit: "some shit" },
-  { name: "Test Config", publishedToMain: false, someShit: "some shit" }
-];
+  if (!tenantId) {
+    return res.status(400).json({ error: "tenantId is required" });
+  }
 
-router.get("/", (_req, res) => {
-  res.json(DUMMY_CONFIGS);
+  const configs = CONFIGURATIONS_BY_TENANT[tenantId] ?? [];
+  return res.json(configs);
 });
-
-export const configRouter = router;

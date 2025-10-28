@@ -1,39 +1,33 @@
 import { Router } from "express";
-import { z } from "zod";
 
-const router = Router();
+export const questionsRouter = Router({ mergeParams: true });
 
-const QuestionRequestSchema = z.object({
-  messageId: z.string().optional(),
-  conversationId: z.string().optional(),
-  text: z.string().optional(),
-});
+questionsRouter.get("/", (req, res) => {
+  const { tenantId, userId, conversationId, messageId } = req.params as {
+    tenantId?: string;
+    userId?: string;
+    conversationId?: string;
+    messageId?: string;
+  };
 
-router.post("/", (req, res) => {
-  const parsed = QuestionRequestSchema.safeParse(req.body);
-  if (!parsed.success) {
+  if (!tenantId || !userId || !conversationId || !messageId) {
     return res.status(400).json({
-      error: "Invalid question generation payload",
-      details: parsed.error.flatten(),
+      error:
+        "tenantId, userId, conversationId, and messageId are required parameters",
     });
   }
 
-  const { conversationId, messageId, text } = parsed.data;
-  const baseTopic =
-    text?.slice(0, 40) ??
-    (messageId ? `message ${messageId}` : "your recent conversation");
+  const { configName } = req.query;
+  const context =
+    typeof configName === "string" && configName.length > 0
+      ? ` with configuration "${configName}"`
+      : "";
 
-  res.json({
-    questions: [
-      `What follow-up details can you share about ${baseTopic}?`,
-      `Are there constraints or edge cases for ${baseTopic}?`,
-      `How should success be measured when addressing ${baseTopic}?`,
-    ],
-    conversationId,
-    messageId,
-    generatedAt: new Date().toISOString(),
-  });
+  const suggestions = [
+    `Can you expand on the previous answer${context}?`,
+    `What risks should be considered${context}?`,
+    `What follow-up actions are recommended${context}?`,
+  ];
+
+  return res.json(suggestions);
 });
-
-export const questionsRouter = router;
-

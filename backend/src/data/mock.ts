@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 export type Source = {
   id: string;
   name: string;
@@ -5,239 +7,449 @@ export type Source = {
   relevantParts: string[];
 };
 
-export type StoredMessage = {
-  id: string;
-  role: "assistant" | "user" | "tool";
-  content: string;
-  sources?: Source[];
+export type MessageFeedback = {
+  feedbackType: 1 | 0;
+  reason: string | null;
+  text: string | null;
+  acknowledged: boolean;
 };
 
-export type StoredConversation = {
+export type MessageData =
+  | {
+      type: "references";
+      sources: Source[];
+    }
+  | {
+      type: "image";
+      url: string;
+      description?: string;
+    };
+
+export type ImageSelection = {
+  key: string;
+  src: string;
+  filepath: string;
+  type: string;
+};
+
+export type Message = {
+  _id: string;
+  role: "user" | "assistant";
+  content: string;
+  conversationId: string;
+  userId: string;
+  tenantId: string;
+  createdAt: string;
+  data?: MessageData;
+  feedback?: MessageFeedback;
+  imageSelection?: ImageSelection[];
+};
+
+export type Conversation = {
+  _id: string;
+  title: string;
+  tenantId: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Tenant = {
   id: string;
   name: string;
+  logoUrl?: string;
+};
+
+export type Configuration = {
+  name: string;
+  templateId: string;
+  publishedToMain: boolean;
+  blocks: Array<{
+    id: string;
+    title: string;
+  }>;
+};
+
+export type TestProfile = {
+  _id: string;
+  userId: string;
+  description: string;
+  data: Record<string, unknown>;
+};
+
+export type TechnicalUserPermissions = {
+  canChat: boolean;
+  canDeleteConversation: boolean;
+  canProvideFeedback: boolean;
+};
+
+export type ActiveUser = {
+  id: string;
+  displayName: string;
+  email: string;
 };
 
 export const HARDCODED_SOURCES: Source[] = [
   {
     id: "source-1",
     name: "Product Documentation",
-    text: "# Heading 1\nFirst, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.Our platform offers comprehensive analytics and real-time monitoring capabilities. Users can track key metrics, set up custom alerts, and generate detailed reports. The analytics dashboard provides visualization tools including charts, graphs, and customizable widgets.",
+    text: [
+      "First, obtain your API key from the dashboard.",
+      "Then, make authenticated requests using the bearer token format.",
+      "All API endpoints require authentication via the Authorization header.",
+      "Our platform offers comprehensive analytics and real-time monitoring capabilities.",
+    ].join(" "),
     relevantParts: [
       "Our platform offers comprehensive analytics and real-time monitoring capabilities.",
       "Users can track key metrics, set up custom alerts, and generate detailed reports.",
-      "The analytics dashboard provides visualization tools including charts, graphs, and customizable widgets.",
     ],
   },
   {
     id: "source-2",
     name: "Knowledge Base Article",
-    text: "First, obtain your API key from the dashboard. Then, make authenticated requests using the bearer token format. All API endpoints require authentication via the Authorization header.",
+    text: "Make authenticated requests using the bearer token format. All API endpoints require authentication.",
     relevantParts: [
-      "First, obtain your API key from the dashboard.",
       "Make authenticated requests using the bearer token format.",
-      "All API endpoints require authentication via the Authorization header.",
+      "All API endpoints require authentication.",
     ],
   },
   {
     id: "source-3",
     name: "Best Practices Guide",
-    text: "We recommend implementing caching strategies, batching requests when possible. Using webhooks for real-time updates rather than polling. Batching multiple operations into a single request improves efficiency.",
+    text: "We recommend implementing caching strategies and batching requests when possible.",
     relevantParts: [
-      "We recommend implementing caching strategies, batching requests when possible.",
-      "Using webhooks for real-time updates rather than polling.",
-      "Batching multiple operations into a single request improves efficiency.",
-    ],
-  },
-  {
-    id: "source-4",
-    name: "Best Practices Guide",
-    text: "We recommend implementing caching strategies, batching requests when possible. Using webhooks for real-time updates rather than polling. Batching multiple operations into a single request improves efficiency.",
-    relevantParts: [
-      "We recommend implementing caching strategies, batching requests when possible.",
-      "Using webhooks for real-time updates rather than polling.",
-      "Batching multiple operations into a single request improves efficiency.",
+      "Implement caching strategies.",
+      "Batch requests when possible.",
     ],
   },
 ];
 
-export const conversations: StoredConversation[] = [
+export const TENANTS: Tenant[] = [
+  { id: "tenant-1", name: "Acme Industries" },
+  { id: "tenant-2", name: "Globex Corporation" },
+];
+
+export const ACTIVE_USER: ActiveUser = {
+  id: "user-123",
+  displayName: "Max Schneider",
+  email: "max.schneider@example.com",
+};
+
+export const TECHNICAL_USER_PERMISSIONS: Record<
+  string,
+  TechnicalUserPermissions
+> = {
+  "tenant-1": {
+    canChat: true,
+    canDeleteConversation: true,
+    canProvideFeedback: true,
+  },
+  "tenant-2": {
+    canChat: true,
+    canDeleteConversation: false,
+    canProvideFeedback: true,
+  },
+};
+
+export const CONFIGURATIONS_BY_TENANT: Record<string, Configuration[]> = {
+  "tenant-1": [
+    {
+      name: "default",
+      templateId: "tmpl-default",
+      publishedToMain: true,
+      blocks: [
+        { id: "intro", title: "Introduction" },
+        { id: "summary", title: "Summary" },
+      ],
+    },
+    {
+      name: "finance-specialist",
+      templateId: "tmpl-finance",
+      publishedToMain: false,
+      blocks: [
+        { id: "analysis", title: "Financial Analysis" },
+        { id: "risk", title: "Risk Summary" },
+      ],
+    },
+  ],
+  "tenant-2": [
+    {
+      name: "default",
+      templateId: "tmpl-default-2",
+      publishedToMain: true,
+      blocks: [{ id: "overview", title: "Overview" }],
+    },
+  ],
+};
+
+export const TEST_PROFILES_BY_TENANT: Record<string, TestProfile[]> = {
+  "tenant-1": [
+    {
+      _id: "profile-1",
+      userId: "test-user-1",
+      description: "Sales manager scenario",
+      data: { region: "EMEA" },
+    },
+    {
+      _id: "profile-2",
+      userId: "test-user-2",
+      description: "Support specialist scenario",
+      data: { language: "en-US" },
+    },
+  ],
+  "tenant-2": [
+    {
+      _id: "profile-3",
+      userId: "test-user-3",
+      description: "Marketing analyst scenario",
+      data: { region: "APAC" },
+    },
+  ],
+};
+
+const seededConversations: Conversation[] = [
   {
-    id: "seed-1",
-    name: "Welcome Conversation",
+    _id: "conv-1",
+    title: "Quarterly planning",
+    tenantId: "tenant-1",
+    userId: "user-123",
+    createdAt: "2024-01-10T12:00:00.000Z",
+    updatedAt: "2024-01-10T12:45:00.000Z",
   },
   {
-    id: "seed-2",
-    name: "Getting Started",
+    _id: "conv-2",
+    title: "Incident response",
+    tenantId: "tenant-1",
+    userId: "user-123",
+    createdAt: "2024-02-02T09:13:00.000Z",
+    updatedAt: "2024-02-02T10:01:00.000Z",
   },
   {
-    id: "seed-3",
-    name: "Help & Support",
-  },
-  {
-    id: "seed-4",
-    name: "Quick Tips",
+    _id: "conv-3",
+    title: "Data retention policy",
+    tenantId: "tenant-2",
+    userId: "user-123",
+    createdAt: "2024-03-14T15:25:00.000Z",
+    updatedAt: "2024-03-14T15:55:00.000Z",
   },
 ];
 
-export const messagesByConversation: Record<string, StoredMessage[]> = {
-  "seed-1": [
+const seededMessages: Record<string, Message[]> = {
+  "conv-1": [
     {
-      id: "seed-1-msg-1",
-      role: "assistant",
-      content: "Hi there! I'm your AI assistant. How can I help you today?",
-      sources: HARDCODED_SOURCES,
-    },
-    {
-      id: "seed-1-msg-2",
+      _id: "conv-1-msg-1",
       role: "user",
-      content: "What can you help me with?",
+      content: "Can you summarise the Q1 OKRs?",
+      conversationId: "conv-1",
+      tenantId: "tenant-1",
+      userId: "user-123",
+      createdAt: "2024-01-10T12:00:00.000Z",
     },
     {
-      id: "seed-1-msg-3",
+      _id: "conv-1-msg-2",
       role: "assistant",
       content:
-        "I can help you with several things including:\n1. Code assistance\n2. Data analysis\n3. General questions\nWhat would you like to explore?",
+        "Sure! The primary objectives for Q1 focus on driving expansion revenue, improving churn, and launching the analytics revamp.",
+      conversationId: "conv-1",
+      tenantId: "tenant-1",
+      userId: "user-123",
+      createdAt: "2024-01-10T12:01:15.000Z",
+      data: {
+        type: "references",
+        sources: HARDCODED_SOURCES,
+      },
+      feedback: {
+        feedbackType: 1,
+        reason: null,
+        text: null,
+        acknowledged: true,
+      },
     },
   ],
-  "seed-2": [
+  "conv-2": [
     {
-      id: "seed-2-msg-1",
-      role: "assistant",
-      content: "Welcome! I'm here to help you get started. What would you like to know first?",
-    },
-    {
-      id: "seed-2-msg-2",
-      role: "user",
-      content: "Give me an overview of the available features",
-    },
-    {
-      id: "seed-2-msg-3",
+      _id: "conv-2-msg-1",
       role: "assistant",
       content:
-        "Here's an overview of what I can help you with:\n\n• **Code Assistance**: I can help debug, write, and explain code\n• **Data Analysis**: Analyze datasets and provide insights\n• **General Questions**: Answer questions on a wide range of topics\n• **Problem Solving**: Help break down complex problems into manageable steps\n• **Documentation**: Help you understand and document your work\n\nWhich area interests you most?",
+        "Hello! I'm here to help with incident response planning. What scenario are you working through?",
+      conversationId: "conv-2",
+      tenantId: "tenant-1",
+      userId: "user-123",
+      createdAt: "2024-02-02T09:13:00.000Z",
     },
   ],
-  "seed-3": [
+  "conv-3": [
     {
-      id: "seed-3-msg-1",
-      role: "assistant",
-      content: "Hello! How can I assist you today?",
-    },
-    {
-      id: "seed-3-msg-2",
+      _id: "conv-3-msg-1",
       role: "user",
-      content: "What's the best way to use this tool?",
-    },
-    {
-      id: "seed-3-msg-3",
-      role: "assistant",
-      content:
-        "Here are some tips for getting the most out of this tool:\n\n1. **Be Specific**: The more details you provide, the better I can help\n2. **Use Examples**: Share code snippets or examples when relevant\n3. **Ask Follow-ups**: Don't hesitate to ask for clarification or elaboration\n4. **Iterate**: You can refine your questions based on my responses\n5. **Use the Tools**: I can call tools to help solve your problems\n\nWhat specific task would you like help with?",
-    },
-    {
-      id: "seed-3-msg-4",
-      role: "user",
-      content: "What's the best way to use this tool?",
-    },
-    {
-      id: "seed-3-msg-5",
-      role: "assistant",
-      content:
-        "Here are some tips for getting the most out of this tool:\n\n1. **Be Specific**: The more details you provide, the better I can help\n2. **Use Examples**: Share code snippets or examples when relevant\n3. **Ask Follow-ups**: Don't hesitate to ask for clarification or elaboration\n4. **Iterate**: You can refine your questions based on my responses\n5. **Use the Tools**: I can call tools to help solve your problems\n\nWhat specific task would you like help with?",
-    },
-    {
-      id: "seed-3-msg-6",
-      role: "user",
-      content: "What's the best way to use this tool?",
-    },
-    {
-      id: "seed-3-msg-7",
-      role: "assistant",
-      content:
-        "Here are some tips for getting the most out of this tool:\n\n1. **Be Specific**: The more details you provide, the better I can help\n2. **Use Examples**: Share code snippets or examples when relevant\n3. **Ask Follow-ups**: Don't hesitate to ask for clarification or elaboration\n4. **Iterate**: You can refine your questions based on my responses\n5. **Use the Tools**: I can call tools to help solve your problems\n\nWhat specific task would you like help with?",
-    },
-    {
-      id: "seed-3-msg-8",
-      role: "user",
-      content: "What's the best way to use this tool?",
-    },
-    {
-      id: "seed-3-msg-9",
-      role: "assistant",
-      content:
-        "Here are some tips for getting the most out of this tool:\n\n1. **Be Specific**: The more details you provide, the better I can help\n2. **Use Examples**: Share code snippets or examples when relevant\n3. **Ask Follow-ups**: Don't hesitate to ask for clarification or elaboration\n4. **Iterate**: You can refine your questions based on my responses\n5. **Use the Tools**: I can call tools to help solve your problems\n\nWhat specific task would you like help with?",
-    },
-    {
-      id: "seed-3-msg-10",
-      role: "user",
-      content: "What's the best way to use this tool?",
-    },
-    {
-      id: "seed-3-msg-11",
-      role: "assistant",
-      content:
-        "Here are some tips for getting the most out of this tool:\n\n1. **Be Specific**: The more details you provide, the better I can help\n2. **Use Examples**: Share code snippets or examples when relevant\n3. **Ask Follow-ups**: Don't hesitate to ask for clarification or elaboration\n4. **Iterate**: You can refine your questions based on my responses\n5. **Use the Tools**: I can call tools to help solve your problems\n\nWhat specific task would you like help with?",
-    },
-    {
-      id: "seed-3-msg-12",
-      role: "user",
-      content: "What's the best way to use this tool?",
-    },
-    {
-      id: "seed-3-msg-13",
-      role: "assistant",
-      content:
-        "Here are some tips for getting the most out of this tool:\n\n1. **Be Specific**: The more details you provide, the better I can help\n2. **Use Examples**: Share code snippets or examples when relevant\n3. **Ask Follow-ups**: Don't hesitate to ask for clarification or elaboration\n4. **Iterate**: You can refine your questions based on my responses\n5. **Use the Tools**: I can call tools to help solve your problems\n\nWhat specific task would you like help with?",
-    },
-    {
-        id: "seed-3-msg-14",
-      role: "user",
-      content: "What's the best way to use this tool?",
-    },
-    {
-      id: "seed-3-msg-15",
-      role: "assistant",
-      content:
-        "Here are some tips for getting the most out of this tool:\n\n1. **Be Specific**: The more details you provide, the better I can help\n2. **Use Examples**: Share code snippets or examples when relevant\n3. **Ask Follow-ups**: Don't hesitate to ask for clarification or elaboration\n4. **Iterate**: You can refine your questions based on my responses\n5. **Use the Tools**: I can call tools to help solve your problems\n\nWhat specific task would you like help with?",
-    },
-  ],
-  "seed-4": [
-    {
-      id: "seed-4-msg-1",
-      role: "assistant",
-      content: "Hi! I'm ready to help. What do you need?",
-    },
-    {
-      id: "seed-4-msg-2",
-      role: "user",
-      content: "Explain how to get started",
-    },
-    {
-      id: "seed-4-msg-3",
-      role: "assistant",
-      content:
-        "Here's how to get started:\n\n**Getting Started Guide:**\n\n1. **Ask a Question**: Simply type what you need help with in the chat\n2. **Review Responses**: I'll provide detailed answers with explanations\n3. **Explore Features**: Try asking about different capabilities\n4. **Use Feedback**: Let me know if something is helpful or needs improvement\n5. **Follow-up**: Ask for more details on anything that interests you\n\nWould you like me to walk you through a specific feature or topic?",
+      content: "What is our retention policy for analytics data?",
+      conversationId: "conv-3",
+      tenantId: "tenant-2",
+      userId: "user-123",
+      createdAt: "2024-03-14T15:25:00.000Z",
     },
   ],
 };
 
-export const ensureConversationMessages = (conversationId: string) => {
-  if (!messagesByConversation[conversationId]) {
-    messagesByConversation[conversationId] = [];
+const conversations = [...seededConversations];
+export const messagesByConversationId: Record<string, Message[]> = {
+  ...seededMessages,
+};
+
+export const listConversations = (tenantId: string, userId: string) =>
+  conversations
+    .filter(
+      (conversation) =>
+        conversation.tenantId === tenantId && conversation.userId === userId,
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+
+export const findConversation = (
+  tenantId: string,
+  userId: string,
+  conversationId: string,
+) =>
+  conversations.find(
+    (conversation) =>
+      conversation._id === conversationId &&
+      conversation.tenantId === tenantId &&
+      conversation.userId === userId,
+  );
+
+export const createConversation = (
+  tenantId: string,
+  userId: string,
+  title?: string,
+) => {
+  const now = new Date().toISOString();
+  const conversation: Conversation = {
+    _id: `conv-${randomUUID()}`,
+    title: title?.trim() ? title.trim() : "New conversation",
+    tenantId,
+    userId,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  conversations.unshift(conversation);
+  messagesByConversationId[conversation._id] = [];
+
+  return conversation;
+};
+
+export const updateConversationTitle = (
+  tenantId: string,
+  userId: string,
+  conversationId: string,
+  title: string,
+) => {
+  const conversation = findConversation(tenantId, userId, conversationId);
+  if (!conversation) {
+    return undefined;
+  }
+
+  const trimmed = title.trim();
+  conversation.title = trimmed.length > 0 ? trimmed : conversation.title;
+  conversation.updatedAt = new Date().toISOString();
+  return conversation;
+};
+
+export const deleteConversation = (
+  tenantId: string,
+  userId: string,
+  conversationId: string,
+) => {
+  const index = conversations.findIndex(
+    (conversation) =>
+      conversation._id === conversationId &&
+      conversation.tenantId === tenantId &&
+      conversation.userId === userId,
+  );
+
+  if (index === -1) {
+    return false;
+  }
+
+  conversations.splice(index, 1);
+  delete messagesByConversationId[conversationId];
+  return true;
+};
+
+export const listMessages = (
+  tenantId: string,
+  userId: string,
+  conversationId: string,
+) => {
+  const conversation = findConversation(tenantId, userId, conversationId);
+  if (!conversation) {
+    return undefined;
+  }
+
+  return [...(messagesByConversationId[conversationId] ?? [])].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+};
+
+export const findMessage = (
+  tenantId: string,
+  userId: string,
+  conversationId: string,
+  messageId: string,
+) => {
+  const messages = listMessages(tenantId, userId, conversationId);
+  if (!messages) {
+    return undefined;
+  }
+
+  return messages.find((message) => message._id === messageId);
+};
+
+export const appendMessage = (message: Message) => {
+  const list = messagesByConversationId[message.conversationId] ?? [];
+  list.push(message);
+  messagesByConversationId[message.conversationId] = list;
+
+  const conversation = conversations.find(
+    (candidate) => candidate._id === message.conversationId,
+  );
+  if (conversation) {
+    conversation.updatedAt = new Date().toISOString();
   }
 };
 
-export const getConversationMessages = (conversationId: string) => {
-  ensureConversationMessages(conversationId);
-  return messagesByConversation[conversationId];
+export const upsertFeedback = (
+  tenantId: string,
+  userId: string,
+  conversationId: string,
+  messageId: string,
+  payload: MessageFeedback | null,
+) => {
+  const messages = listMessages(tenantId, userId, conversationId);
+  if (!messages) {
+    return undefined;
+  }
+
+  const match = messages.find((message) => message._id === messageId);
+  if (!match) {
+    return undefined;
+  }
+
+  if (!payload) {
+    delete match.feedback;
+    return match;
+  }
+
+  match.feedback = {
+    ...payload,
+    reason: payload.reason ?? null,
+    text: payload.text ?? null,
+    acknowledged:
+      typeof payload.acknowledged === "boolean" ? payload.acknowledged : false,
+  };
+
+  return match;
 };
 
-export const findMessageById = (messageId: string) => {
-  for (const messages of Object.values(messagesByConversation)) {
-    const match = messages.find((candidate) => candidate.id === messageId);
-    if (match) {
-      return match;
-    }
-  }
-  return undefined;
-};
