@@ -374,18 +374,10 @@ export default function App() {
       setHasInitializedConversations(true);
       void ensureMessagesLoaded(firstConversationId);
     } else {
+      // No conversations available; do not auto-create a placeholder
       setHasInitializedConversations(true);
-      const tempId = `temp-${Date.now()}`;
-      const tempConv: ConversationData = {
-        id: tempId,
-        name: "New Conversation",
-      };
-      setConversations([tempConv]);
-      setMessagesByConversation((current) => ({
-        ...current,
-        [tempId]: [],
-      }));
-      setActiveConversationId(tempId);
+      setConversations([]);
+      setActiveConversationId(null);
     }
   }, [remoteConversations, hasInitializedConversations, ensureMessagesLoaded]);
 
@@ -710,15 +702,9 @@ export default function App() {
       (conv) => conv.id !== conversationId
     );
 
-    let fallbackConversation: ConversationData | null = null;
-
     if (updatedConversations.length === 0) {
-      fallbackConversation = {
-        id: Date.now().toString(),
-        name: "New Conversation",
-      };
-      setConversations([fallbackConversation]);
-      setActiveConversationId(fallbackConversation.id);
+      setConversations([]);
+      setActiveConversationId(null);
     } else {
       setConversations(updatedConversations);
       if (conversationId === activeConversationId) {
@@ -729,9 +715,6 @@ export default function App() {
     setMessagesByConversation((current) => {
       const next = { ...current };
       delete next[conversationId];
-      if (fallbackConversation) {
-        next[fallbackConversation.id] = [];
-      }
       return next;
     });
 
