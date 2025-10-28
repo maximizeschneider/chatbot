@@ -33,13 +33,6 @@ export function SourceDialog({
   const [highlightedPartIndex, setHighlightedPartIndex] = useState<number | null>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
 
-  // Reset highlighting when modal closes
-  useEffect(() => {
-    if (!open) {
-      setHighlightedPartIndex(null);
-    }
-  }, [open]);
-
   // Scroll to highlighted part when it changes
   useEffect(() => {
     if (highlightedPartIndex !== null && highlightRef.current) {
@@ -89,7 +82,15 @@ export function SourceDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(dialogOpen) => !dialogOpen && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(dialogOpen) => {
+        if (!dialogOpen) {
+          resetHighlight();
+          onClose();
+        }
+      }}
+    >
       <DialogContent className="max-w-4xl h-[85vh] flex flex-col">
         <div className="relative flex-1 flex flex-col min-h-0">
           {hasMultipleSources && (

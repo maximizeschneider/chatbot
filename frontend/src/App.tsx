@@ -181,13 +181,8 @@ export default function App() {
   const messagesByConversationRef = useRef(messagesByConversation);
   const autoScrollOnMessagesChangeRef = useRef(false);
 
-  useEffect(() => {
-    visibleSourcesRef.current = visibleSourcesByConversation;
-  }, [visibleSourcesByConversation]);
-
-  useEffect(() => {
-    messagesByConversationRef.current = messagesByConversation;
-  }, [messagesByConversation]);
+  visibleSourcesRef.current = visibleSourcesByConversation;
+  messagesByConversationRef.current = messagesByConversation;
 
   const { data: configData, isError: isConfigError, error: configError } = useConfigQuery();
   const { data: userProfileData, isError: isProfileError, error: profileError } = useUserProfileQuery();
@@ -232,6 +227,18 @@ export default function App() {
   const userProfileOptions: UserProfile[] = userProfileData
     ? [{ name: upn, _id: "upn" }, ...userProfileData]
     : [];
+
+  const resolvedConfigName =
+    selectedConfigName &&
+    configOptions.some((candidate) => candidate.name === selectedConfigName)
+      ? selectedConfigName
+      : configOptions[0]?.name ?? null;
+
+  const resolvedProfile =
+    selectedProfile &&
+    userProfileOptions.some((candidate) => candidate.name === selectedProfile.name)
+      ? selectedProfile
+      : userProfileOptions[0] ?? null;
 
   const ensureMessagesLoaded = useCallback(
     async (conversationId: string) => {
@@ -354,30 +361,6 @@ export default function App() {
       return next;
     });
   }, [activeConversationId, ensureMessagesLoaded]);
-
-  useEffect(() => {
-    if (
-      selectedConfigName &&
-      configOptions.length > 0 &&
-      !configOptions.some((c) => c.name === selectedConfigName)
-    ) {
-      setSelectedConfigName(configOptions[0]?.name ?? null);
-    } else if (!selectedConfigName && configOptions.length > 0) {
-      setSelectedConfigName(configOptions[0]?.name ?? null);
-    }
-  }, [configOptions, selectedConfigName]);
-
-  useEffect(() => {
-    if (
-      selectedProfile &&
-      userProfileOptions.length > 0 &&
-      !userProfileOptions.some((p) => p.name === selectedProfile.name)
-    ) {
-      setSelectedProfile(userProfileOptions[0] ?? null);
-    } else if (!selectedProfile && userProfileOptions.length > 0) {
-      setSelectedProfile(userProfileOptions[0] ?? null);
-    }
-  }, [userProfileOptions, selectedProfile]);
 
   useEffect(() => {
     if (hasInitializedConversations || !remoteConversations) {
@@ -575,17 +558,11 @@ export default function App() {
     activeStream.isStreaming &&
     activeStream.conversationId === activeConversationId;
 
-  useEffect(() => {
-    if (isActiveConversationStreaming && !wasStreamingRef.current) {
-      hasUserScrolledDuringStreamRef.current = false;
-    }
-
-    if (!isActiveConversationStreaming && wasStreamingRef.current) {
-      hasUserScrolledDuringStreamRef.current = false;
-    }
-
+  const wasStreamingPreviously = wasStreamingRef.current;
+  if (wasStreamingPreviously !== isActiveConversationStreaming) {
+    hasUserScrolledDuringStreamRef.current = false;
     wasStreamingRef.current = isActiveConversationStreaming;
-  }, [isActiveConversationStreaming]);
+  }
 
   const scrollToBottom = useCallback(() => {
     if (
@@ -885,14 +862,14 @@ export default function App() {
         prompt: text,
         conversationId,
       };
-      if (selectedConfigName) {
-        chatRequest.configName = selectedConfigName;
+      if (resolvedConfigName) {
+        chatRequest.configName = resolvedConfigName;
       }
-      if (selectedProfile) {
-        if (selectedProfile._id === "upn") {
-          chatRequest.upn = selectedProfile.name;
+      if (resolvedProfile) {
+        if (resolvedProfile._id === "upn") {
+          chatRequest.upn = resolvedProfile.name;
         } else {
-          chatRequest.profile = selectedProfile;
+          chatRequest.profile = resolvedProfile;
         }
       }
 
@@ -1278,9 +1255,9 @@ export default function App() {
           conversations={conversations}
           activeConversationId={activeConversationId}
           configOptions={configOptions}
-          selectedConfigName={selectedConfigName}
+          selectedConfigName={resolvedConfigName}
           userProfileOptions={userProfileOptions}
-          selectedProfile={selectedProfile}
+          selectedProfile={resolvedProfile}
           isOpen={isSidebarOpen}
           onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
           onCreateConversation={() => {
