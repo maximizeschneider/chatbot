@@ -679,7 +679,10 @@ export default function App() {
         next[created.id] = tempMessages;
         return next;
       });
-      setActiveConversationId(created.id);
+      // Only switch focus if the temp conversation is still active
+      setActiveConversationId((currentActive) =>
+        currentActive === tempId ? created.id : currentActive
+      );
     } catch (error) {
       console.error("Failed to create conversation via API:", error);
       toast.error("Failed to create conversation", {
@@ -698,7 +701,10 @@ export default function App() {
         next[localId] = tempMessages;
         return next;
       });
-      setActiveConversationId(localId);
+      // Only switch focus if the temp conversation is still active
+      setActiveConversationId((currentActive) =>
+        currentActive === tempId ? localId : currentActive
+      );
     }
   };
 
@@ -776,23 +782,27 @@ export default function App() {
     // If this is a temp conversation (starts with "temp-"), create a real one
     if (conversationId.startsWith("temp-")) {
       try {
+        const tempConversationId = conversationId;
         const created = await createConversationMutation.mutateAsync({
           name: "New Conversation",
         });
         
         // Replace the temp conversation with the real one
         setConversations((prev) =>
-          prev.map((conv) => (conv.id === conversationId ? created : conv))
+          prev.map((conv) => (conv.id === tempConversationId ? created : conv))
         );
         setMessagesByConversation((current) => {
-          const { [conversationId]: tempMessages = [] } = current;
+          const { [tempConversationId]: tempMessages = [] } = current;
           const next = { ...current };
-          delete next[conversationId];
+          delete next[tempConversationId];
           next[created.id] = tempMessages;
           return next;
         });
         conversationId = created.id;
-        setActiveConversationId(created.id);
+        // Only switch focus if the temp conversation is still active
+        setActiveConversationId((currentActive) =>
+          currentActive === tempConversationId ? created.id : currentActive
+        );
       } catch (error) {
         console.error("Failed to create conversation:", error);
         toast.error("Failed to create conversation", {
