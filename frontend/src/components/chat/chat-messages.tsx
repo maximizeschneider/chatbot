@@ -36,6 +36,7 @@ interface ChatMessagesProps {
   statusUpdate: string;
   isStreaming: boolean;
   streamingMessage: string;
+  isMessagesLoading: boolean;
   messagesEndRef: RefObject<HTMLDivElement | null>;
   onSelectSource: (source: Source, sources: Source[]) => void;
   onFeedback: (
@@ -61,6 +62,7 @@ export function ChatMessages({
   statusUpdate,
   isStreaming,
   streamingMessage,
+  isMessagesLoading,
   messagesEndRef,
   onSelectSource,
   onFeedback,
@@ -85,6 +87,12 @@ export function ChatMessages({
     <Conversation className="flex-1" contextRef={stickToBottomContextRef}>
       <StickStateObserver onEscapeChange={onStickToBottomEscapeChange} />
       <ConversationContent className="max-w-3xl mx-auto w-full">
+        {isMessagesLoading && visibleMessages.length === 0 ? (
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
+            <Loader size={16} className="mr-2" />
+            Loading messages...
+          </div>
+        ) : null}
         {visibleMessages.map((message) => {
           const isAssistant = message.role === "assistant";
           const isGeneratingForMessage =
@@ -209,16 +217,13 @@ export function ChatMessages({
                             sourcesVisible ? "Hide sources" : "Show sources"
                           }
                         >
-                          {sourcesLoading ? (
-                            <Loader size={12} />
-                          ) : (
-                            <ChevronDownIcon
-                              className={cn(
-                                "h-3 w-3 transition-transform",
-                                sourcesVisible ? "rotate-0" : "-rotate-90"
-                              )}
-                            />
-                          )}
+                          <ChevronDownIcon
+                            className={cn(
+                              "h-3 w-3 transition-transform",
+                              sourcesVisible ? "rotate-0" : "-rotate-90",
+                              sourcesLoading && "opacity-50"
+                            )}
+                          />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="top">

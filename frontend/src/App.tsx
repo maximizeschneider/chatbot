@@ -174,6 +174,8 @@ export default function App() {
     useState<Record<string, Record<string, boolean>>>({});
   const [sourcesErrorByConversation, setSourcesErrorByConversation] =
     useState<Record<string, Record<string, string>>>({});
+  const [loadingMessagesByConversation, setLoadingMessagesByConversation] =
+    useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
   const visibleSourcesRef = useRef(visibleSourcesByConversation);
   const messagesByConversationRef = useRef(messagesByConversation);
@@ -242,6 +244,10 @@ export default function App() {
       }
 
       try {
+        setLoadingMessagesByConversation((current) => ({
+          ...current,
+          [conversationId]: true,
+        }));
         const apiMessages = await fetchConversationMessages(conversationId);
         const normalized: ChatMessage[] = apiMessages.map(
           (message: ConversationMessage) => ({
@@ -264,6 +270,12 @@ export default function App() {
           ...current,
           [conversationId]: current[conversationId] ?? [],
         }));
+      } finally {
+        setLoadingMessagesByConversation((current) => {
+          const next = { ...current };
+          delete next[conversationId];
+          return next;
+        });
       }
     },
     [setMessagesByConversation]
@@ -1278,6 +1290,11 @@ export default function App() {
             statusUpdate={visibleStatusUpdate}
             isStreaming={isActiveConversationStreaming}
             streamingMessage={visibleStreamingMessage}
+            isMessagesLoading={
+              activeConversationId
+                ? !!loadingMessagesByConversation[activeConversationId]
+                : false
+            }
             messagesEndRef={messagesEndRef}
             onSelectSource={(source, sources) => {
               const sourceIndex = sources.findIndex(
